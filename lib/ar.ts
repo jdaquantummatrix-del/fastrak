@@ -136,6 +136,20 @@ export async function removeARForDR(
   return rows.length;
 }
 
+// Delete the A/R credit row(s) raised by a given Return. A posted return inserts an
+// offsetting (negative) A/R row tagged with its return_id (lib/returns.ts postReturn);
+// un-posting removes it. Takes an Executor so it runs INSIDE the caller's transaction.
+// Returns how many rows were removed.
+export async function removeARForReturn(
+  returnId: string,
+  exec: Executor = defaultExecutor
+): Promise<number> {
+  const rows = await exec(`delete from ar where return_id = $1 returning id`, [
+    returnId
+  ]);
+  return rows.length;
+}
+
 // ── read path (reporting) ───────────────────────────────────────────────────────
 
 // Every A/R row, newest due first (no aggregation — the raw ledger).
