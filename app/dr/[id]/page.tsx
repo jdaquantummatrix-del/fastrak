@@ -105,6 +105,12 @@ export default async function DRDetailPage({
             </button>
           </form>
         ) : null}
+        <a href={`/dr/${dr.id}/print`} className="tag">
+          print
+        </a>
+        <a href={`/dr/${dr.id}/print?price=no`} className="tag">
+          print (no price)
+        </a>
       </div>
 
       {dr.address ? (

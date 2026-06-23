@@ -38,14 +38,45 @@ export default function Home() {
             <a href="/dr">Delivery Receipts</a> — DR headers &amp; detail (dr/drdet.dbf)
           </li>
           <li>
+            <a href="/ar">Accounts Receivable</a> — outstanding balances &amp; aging
+            (raised on DR post)
+          </li>
+          <li>
+            <a href="/returns">Returns</a> — customer returns, restock &amp; A/R credit
+            (return/returndet.dbf)
+          </li>
+          <li>
+            <a href="/collections">Collections</a> — payments received against A/R
+            (col/coldet.dbf)
+          </li>
+          <li>
             <a href="/settings">Settings</a> — company &amp; app defaults
           </li>
           <li>
             <a href="/login">Sign in</a> — shared-password gate
           </li>
         </ul>
+      </div>
+
+      <div className="card" style={{ padding: "18px 20px", marginTop: 16 }}>
+        <strong>Documents / Reports</strong>
+        <ul style={{ margin: "10px 0 0" }}>
+          <li>
+            <a href="/reports/ar">A/R statement</a> — printable aging by customer
+            (also <a href="/reports/ar?asOf=2024-12-31">as of a date</a>)
+          </li>
+          <li>
+            <a href="/reports/inventory">Inventory / stock report</a> — current stock
+            (also <a href="/reports/inventory?critical=1">critical only</a>)
+          </li>
+          <li>
+            <a href="/dr">Delivery Receipt printout</a> — open a DR, then{" "}
+            <strong>print</strong> (priced or packing-slip via{" "}
+            <code>?price=no</code>)
+          </li>
+        </ul>
         <p className="muted" style={{ marginBottom: 0, fontSize: 13 }}>
-          More modules (A/R, collections, invoicing) come as we thicken the slice.
+          More documents (invoices, collection receipts) come as we thicken the slice.
         </p>
       </div>
     </main>
