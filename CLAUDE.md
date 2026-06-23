@@ -36,6 +36,13 @@ tracer-bullet rebuild (one module, one client, end-to-end).
 See `docs/adr/` for hard-to-reverse architectural decisions as they get made, and `CONTEXT.md`
 for the project's domain glossary.
 
+## How we work (the workflow)
+
+**Every feature follows the loop in [`docs/workflow.md`](docs/workflow.md):**
+① define domain → ② `/to-prd` → ③ `/to-issues` + `/triage` → ④ `/tdd` → ⑤ `/review`, then loop.
+No slice is "done" until it's demoable, tested, and reviewed. Don't build off-process. When in
+doubt about which skill to reach for, consult the cheat sheet in that file.
+
 ## Agent skills
 
 Matt Pocock's engineering skills (installed under `.agents/skills/`) read the config below so

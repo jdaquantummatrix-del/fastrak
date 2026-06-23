@@ -28,3 +28,12 @@ Thumbs.db
 *.dbf
 *.DBF
 *.sql.bak
+
+# Teaching workspace (local only)
+learning/
+
+# Kennard proprietary client source (never commit)
+incoming/
+
+# Local dev database (PGlite)
+.pglite/
