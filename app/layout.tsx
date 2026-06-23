@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import AppShell from "./_components/app-shell";
 
 export const metadata: Metadata = {
-  title: "Project Kenny",
+  title: "fastrak — Project Kenny",
   description: "Web rebuild of Kennard's fastrak distribution system"
 };
 
@@ -14,7 +15,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <div className="wrap">{children}</div>
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   );

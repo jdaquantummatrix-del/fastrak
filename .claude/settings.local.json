@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(netstat -ano)",
-      "Bash(tasklist //FI \"IMAGENAME eq node.exe\" //FO CSV)",
-      "Bash(xargs echo \"node.exe count:\")"
-    ]
-  }
-}

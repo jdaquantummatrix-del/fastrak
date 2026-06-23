@@ -1,84 +1,134 @@
-export default function Home() {
+import { query } from "@/lib/db";
+
+export const dynamic = "force-dynamic";
+
+function peso(v: string | number): string {
+  return Number(v ?? 0).toLocaleString("en-PH", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+}
+
+export default async function Dashboard() {
+  let customers = 0;
+  let items = 0;
+  let openDRs = 0;
+  let outstanding = "0.00";
+  let error: string | null = null;
+
+  try {
+    const [c, i, d, a] = await Promise.all([
+      query<{ n: number }>("select count(*)::int n from customers"),
+      query<{ n: number }>("select count(*)::int n from items"),
+      query<{ n: number }>(
+        "select count(*)::int n from dr where posted = true and cancelled = false"
+      ),
+      query<{ total: string }>(
+        "select coalesce(sum(amount), 0)::numeric(14,2) total from ar"
+      )
+    ]);
+    customers = c[0]?.n ?? 0;
+    items = i[0]?.n ?? 0;
+    openDRs = d[0]?.n ?? 0;
+    outstanding = a[0]?.total ?? "0.00";
+  } catch (e) {
+    error = e instanceof Error ? e.message : String(e);
+  }
+
+  const stats = [
+    { label: "Outstanding A/R", value: `₱ ${peso(outstanding)}`, href: "/ar" },
+    { label: "Posted delivery receipts", value: String(openDRs), href: "/dr" },
+    { label: "Items in catalog", value: String(items), href: "/items" },
+    { label: "Customers", value: String(customers), href: "/customers" }
+  ];
+
+  const links: [string, string, string][] = [
+    ["Delivery Receipts", "Create and post sales to customers", "/dr"],
+    ["Collections", "Record payments against receivables", "/collections"],
+    ["Purchase Orders", "Order from suppliers, receive into stock", "/po"],
+    ["Stock", "Current inventory levels and movements", "/inventory"]
+  ];
+
   return (
     <main>
-      <div className="kicker">Project Kenny</div>
-      <h1>fastrak — web rebuild</h1>
-      <p className="muted">
-        The first vertical slice of Kennard&apos;s FoxPro distribution system, rebuilt as a
-        web app. Real data migrated from <code>customer.dbf</code> into Postgres.
-      </p>
-      <div className="card" style={{ padding: "18px 20px" }}>
-        <strong>Modules</strong>
-        <ul style={{ margin: "10px 0 0" }}>
-          <li>
-            <a href="/customers">Customers</a> — list of migrated customers
-          </li>
-          <li>
-            <a href="/units">Units</a> — reference data (unit.dbf)
-          </li>
-          <li>
-            <a href="/categories">Categories</a> — reference data (category.dbf)
-          </li>
-          <li>
-            <a href="/brands">Brands</a> — reference data (brand.dbf)
-          </li>
-          <li>
-            <a href="/suppliers">Suppliers</a> — reference data (supplier.dbf)
-          </li>
-          <li>
-            <a href="/items">Items</a> — product catalog (item.dbf)
-          </li>
-          <li>
-            <a href="/inventory">Inventory</a> — stock ledger &amp; movements
-          </li>
-          <li>
-            <a href="/po">Purchase Orders</a> — PO headers &amp; detail (po/podet.dbf)
-          </li>
-          <li>
-            <a href="/dr">Delivery Receipts</a> — DR headers &amp; detail (dr/drdet.dbf)
-          </li>
-          <li>
-            <a href="/ar">Accounts Receivable</a> — outstanding balances &amp; aging
-            (raised on DR post)
-          </li>
-          <li>
-            <a href="/returns">Returns</a> — customer returns, restock &amp; A/R credit
-            (return/returndet.dbf)
-          </li>
-          <li>
-            <a href="/collections">Collections</a> — payments received against A/R
-            (col/coldet.dbf)
-          </li>
-          <li>
-            <a href="/settings">Settings</a> — company &amp; app defaults
-          </li>
-          <li>
-            <a href="/login">Sign in</a> — shared-password gate
-          </li>
-        </ul>
+      <div className="page-header">
+        <div>
+          <div className="kicker">Overview</div>
+          <h1>Dashboard</h1>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <a className="btn" href="/customers/new">
+            New customer
+          </a>
+          <a className="btn btn-primary" href="/dr/new">
+            New delivery receipt
+          </a>
+        </div>
       </div>
 
-      <div className="card" style={{ padding: "18px 20px", marginTop: 16 }}>
-        <strong>Documents / Reports</strong>
-        <ul style={{ margin: "10px 0 0" }}>
-          <li>
-            <a href="/reports/ar">A/R statement</a> — printable aging by customer
-            (also <a href="/reports/ar?asOf=2024-12-31">as of a date</a>)
-          </li>
-          <li>
-            <a href="/reports/inventory">Inventory / stock report</a> — current stock
-            (also <a href="/reports/inventory?critical=1">critical only</a>)
-          </li>
-          <li>
-            <a href="/dr">Delivery Receipt printout</a> — open a DR, then{" "}
-            <strong>print</strong> (priced or packing-slip via{" "}
-            <code>?price=no</code>)
-          </li>
-        </ul>
-        <p className="muted" style={{ marginBottom: 0, fontSize: 13 }}>
-          More documents (invoices, collection receipts) come as we thicken the slice.
-        </p>
-      </div>
+      {error ? (
+        <div className="notice notice-error">
+          <strong>Database not reachable.</strong>{" "}
+          <span className="muted">
+            Run <code>npm run db:setup</code>. ({error})
+          </span>
+        </div>
+      ) : (
+        <>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+              gap: 14
+            }}
+          >
+            {stats.map((s) => (
+              <a
+                key={s.label}
+                href={s.href}
+                className="card pad"
+                style={{ textDecoration: "none", display: "block" }}
+              >
+                <div
+                  style={{ fontSize: 12.5, color: "var(--muted)", fontWeight: 550 }}
+                >
+                  {s.label}
+                </div>
+                <div
+                  style={{
+                    fontSize: 26,
+                    fontWeight: 680,
+                    letterSpacing: "-0.02em",
+                    marginTop: 6,
+                    color: "var(--ink)",
+                    fontVariantNumeric: "tabular-nums"
+                  }}
+                >
+                  {s.value}
+                </div>
+              </a>
+            ))}
+          </div>
+
+          <h2>Quick links</h2>
+          <div className="card">
+            <table>
+              <tbody>
+                {links.map(([t, d, h]) => (
+                  <tr key={h}>
+                    <td style={{ width: "32%" }}>
+                      <a href={h} style={{ fontWeight: 600 }}>
+                        {t}
+                      </a>
+                    </td>
+                    <td className="muted">{d}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </main>
   );
 }

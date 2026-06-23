@@ -40,3 +40,6 @@ incoming/
 
 # TS build info
 *.tsbuildinfo
+
+# Local Claude settings
+.claude/
