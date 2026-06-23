@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import PageTour from "./page-tour";
 
 // Minimal Feather-style line icons, kept inline so there is no icon dependency.
 const ICONS: Record<string, string> = {
@@ -140,6 +141,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="content">{children}</div>
+      <PageTour />
     </div>
   );
 }
