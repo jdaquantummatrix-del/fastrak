@@ -7,6 +7,7 @@
 import {
   listAR,
   summarizeByCustomer,
+  totalOutstanding,
   type ARRow,
   type CustomerBalance
 } from "@/lib/ar";
@@ -28,19 +29,20 @@ export default async function ARPage() {
   let rows: ARRow[] = [];
   let summary: CustomerBalance[] = [];
   let customers: Customer[] = [];
+  let total = "0.00";
   let error: string | null = null;
   try {
-    [rows, summary, customers] = await Promise.all([
+    [rows, summary, customers, total] = await Promise.all([
       listAR(),
       summarizeByCustomer(),
-      listCustomers()
+      listCustomers(),
+      totalOutstanding()
     ]);
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
   }
 
   const customerName = new Map(customers.map((c) => [c.id, c.name ?? c.id]));
-  const total = summary.reduce((s, r) => s + Number(r.balance), 0);
   const today = new Date().toISOString().slice(0, 10);
 
   // Is this receivable overdue as of today? (drives the due-date highlight)
@@ -69,7 +71,7 @@ export default async function ARPage() {
           <div className="badge-row">
             <span className="count">{summary.length} customer(s) owing</span>
             <span className="tag">{rows.length} open receivable(s)</span>
-            <span className="tag">outstanding: {peso(total.toFixed(2))}</span>
+            <span className="tag">outstanding: {peso(total)}</span>
             <span className="tag">source: ar.dbf (raised on DR post)</span>
           </div>
 

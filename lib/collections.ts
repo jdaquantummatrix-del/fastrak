@@ -100,20 +100,34 @@ async function applyLine(
   exec: Executor
 ): Promise<CollectionLine> {
   const arId = clean(line.ar_id);
-  // Read the targeted receivable (its amount drives the clamp + the snapshots).
+  // Read the targeted receivable (its amount drives the clamp + the snapshots), and
+  // LOCK it (`for update`) so two concurrent collections on the same A/R row can't both
+  // read the old balance and over-collect it negative — the second blocks until the
+  // first commits, then sees the reduced balance.
   const arRows = arId
     ? ((await exec(
-        `select amount, dr_no, due_date::text as due_date, ar_date::text as ar_date
-           from ar where id = $1`,
+        `select amount, customer_id, dr_no, due_date::text as due_date,
+                ar_date::text as ar_date
+           from ar where id = $1 for update`,
         [arId]
       )) as {
         amount: string;
+        customer_id: string | null;
         dr_no: string | null;
         due_date: string | null;
         ar_date: string | null;
       }[])
     : [];
   const ar = arRows[0] ?? null;
+
+  // SECURITY: a collection may only settle ITS OWN customer's receivables. Reject a
+  // line whose A/R row belongs to a different customer than the collection header —
+  // otherwise a forged ar_id could pay down (or read) another customer's balance.
+  if (ar && ar.customer_id !== (customerId ?? null)) {
+    throw new Error(
+      "Collection line targets a receivable belonging to a different customer"
+    );
+  }
 
   // The amount applied: the requested amount, clamped to the row's remaining balance
   // (never more than is owed, never negative). With no targeted A/R, apply 0.
@@ -193,8 +207,16 @@ export async function recordCollection(
     );
     const header = headerRows[0] as CollectionHeader;
 
+    const applied: CollectionLine[] = [];
     for (const line of input.lines ?? []) {
-      await applyLine(id, customerId, line, exec);
+      applied.push(await applyLine(id, customerId, line, exec));
+    }
+    // A collection must move money: reject an empty/zero collection. Throwing here
+    // rolls back the header insert (we are inside the transaction), so no empty `col`
+    // row is ever left behind.
+    const collectedC = applied.reduce((s, l) => s + cents(l.amount), 0);
+    if (collectedC <= 0) {
+      throw new Error("A collection must apply a positive amount");
     }
     return hydrate(header, exec);
   });

@@ -185,6 +185,17 @@ export async function balanceForCustomer(
   return String(rows[0]?.balance ?? "0.00");
 }
 
+// The grand total outstanding across ALL customers, summed in SQL as numeric(14,2)
+// (an exact decimal string, never a JS float). "0.00" when there are no receivables.
+export async function totalOutstanding(
+  exec: Executor = defaultExecutor
+): Promise<string> {
+  const rows = (await exec(
+    `select coalesce(sum(amount), 0)::numeric(14,2) as total from ar`
+  )) as { total: string }[];
+  return String(rows[0]?.total ?? "0.00");
+}
+
 // Receivables rolled up per customer: total balance plus an aging breakdown keyed
 // off each row's due date relative to `asOf` (default today). A row with no due date
 // counts as `current` (not overdue). All five buckets and the balance are summed in

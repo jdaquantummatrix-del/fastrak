@@ -286,14 +286,18 @@ export async function getReturn(
 // an already-posted return is returned unchanged so stock is never double-raised and
 // no duplicate credit is written.
 export async function postReturn(id: string, db: Db = appDb): Promise<Return> {
-  const existing = await getReturn(id, db.query);
-  if (!existing) throw new Error(`Return ${id} not found`);
-  if (existing.posted) return existing;
-
-  // The IN movements, the A/R credit and the posted flip are one transaction: a
-  // failure midway commits nothing, so a retry can't double-restock or write a
-  // duplicate credit (the previous attempt left no movements, posted still false).
+  // Lock the return row and re-check state INSIDE the transaction so two concurrent
+  // posts can't both restock / double-credit — the loser blocks, then sees posted and
+  // no-ops. The IN movements, the A/R credit and the posted flip commit as one unit.
   return db.transaction(async (exec) => {
+    const locked = (await exec(
+      `select ${HEADER_COLUMNS} from return where id = $1 for update`,
+      [id]
+    )) as ReturnHeader[];
+    if (!locked[0]) throw new Error(`Return ${id} not found`);
+    const existing = await hydrate(locked[0], exec);
+    if (existing.posted) return existing;
+
     for (const line of existing.lines) {
       if (line.good !== true) continue; // only resalable goods go back into stock
       if (!line.item_id) continue; // a line with no item can't move stock
@@ -348,6 +352,17 @@ export async function unpostReturn(id: string, db: Db = appDb): Promise<Return> 
   if (!existing.posted) return existing;
 
   return db.transaction(async (exec) => {
+    // A return whose A/R credit row is FK-referenced by a collection can't be un-posted
+    // (deleting it would orphan the coldet line). Refuse with a clear message.
+    const collected = (await exec(
+      `select 1 from coldet cd join ar a on a.id = cd.ar_id
+        where a.return_id = $1 limit 1`,
+      [id]
+    )) as unknown[];
+    if (collected.length > 0)
+      throw new Error(
+        `Cannot un-post return ${id}: its A/R credit has collections applied.`
+      );
     // Remove the restock movements this return wrote.
     await exec(`delete from inventory where return_id = $1`, [id]);
     // Remove the A/R credit it raised (no-op if there is none).

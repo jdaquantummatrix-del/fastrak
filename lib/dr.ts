@@ -399,15 +399,22 @@ export async function getDR(
 // is returned unchanged so stock is never double-released and no duplicate A/R is
 // raised. Refuses a cancelled DR.
 export async function postDR(id: string, db: Db = appDb): Promise<DR> {
-  const existing = await getDR(id, db.query);
-  if (!existing) throw new Error(`DR ${id} not found`);
-  if (existing.cancelled) throw new Error(`DR ${id} is cancelled and cannot be posted`);
-  if (existing.posted) return existing;
-
-  // The OUT movements, the A/R insert and the posted flip are one transaction: a
-  // failure midway commits nothing, so a retry can't double-release stock or raise a
-  // duplicate receivable.
+  // Lock the DR row and re-check state INSIDE the transaction, so two concurrent posts
+  // can't both pass the "already posted?" guard and double-release stock / raise a
+  // duplicate receivable — the loser blocks on the row lock, then sees posted=true and
+  // no-ops. The OUT movements, the A/R insert and the posted flip then commit (or roll
+  // back) as one unit.
   return db.transaction(async (exec) => {
+    const locked = (await exec(
+      `select ${HEADER_COLUMNS} from dr where id = $1 for update`,
+      [id]
+    )) as DRHeader[];
+    if (!locked[0]) throw new Error(`DR ${id} not found`);
+    const existing = await hydrate(locked[0], exec);
+    if (existing.cancelled)
+      throw new Error(`DR ${id} is cancelled and cannot be posted`);
+    if (existing.posted) return existing;
+
     for (const line of existing.lines) {
       if (!line.item_id) continue; // a line with no item can't move stock
       if (line.qty2 === 0) continue;
@@ -456,15 +463,31 @@ export async function postDR(id: string, db: Db = appDb): Promise<DR> {
 // marked cancelled (no movements, no A/R). Idempotent: an already-cancelled DR is
 // returned unchanged.
 export async function cancelDR(id: string, db: Db = appDb): Promise<DR> {
-  const existing = await getDR(id, db.query);
-  if (!existing) throw new Error(`DR ${id} not found`);
-  if (existing.cancelled) return existing;
-
-  // The reversing movements, the A/R removal and the flag changes are one
-  // transaction: a failure midway commits nothing, so a retry can't double-reverse
-  // stock or leave an orphaned receivable.
+  // Lock + re-read inside the transaction; the reversing movements, the A/R removal and
+  // the flag changes then commit (or roll back) as one unit.
   return db.transaction(async (exec) => {
+    const locked = (await exec(
+      `select ${HEADER_COLUMNS} from dr where id = $1 for update`,
+      [id]
+    )) as DRHeader[];
+    if (!locked[0]) throw new Error(`DR ${id} not found`);
+    const existing = await hydrate(locked[0], exec);
+    if (existing.cancelled) return existing;
+
     if (existing.posted) {
+      // A receivable that has been (partly) collected can't be cancelled — its A/R row
+      // is FK-referenced by coldet, so deleting it would orphan the collection. Refuse
+      // with a clear message; the collection must be reversed first.
+      const collected = (await exec(
+        `select 1 from coldet cd join ar a on a.id = cd.ar_id
+          where a.dr_id = $1 limit 1`,
+        [id]
+      )) as unknown[];
+      if (collected.length > 0)
+        throw new Error(
+          `Cannot cancel DR ${id}: its receivable has collections applied. Reverse the collection(s) first.`
+        );
+
       for (const line of existing.lines) {
         if (!line.item_id) continue;
         if (line.qty2 === 0) continue;

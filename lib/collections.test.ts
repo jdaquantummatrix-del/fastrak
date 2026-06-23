@@ -10,7 +10,7 @@ import {
 } from "./collections";
 import { createCustomer } from "./customers";
 import { createItem } from "./items";
-import { createDR, postDR } from "./dr";
+import { createDR, postDR, cancelDR } from "./dr";
 import { listAR, getAR, balanceForCustomer } from "./ar";
 import { readDbf } from "../scripts/dbf.mjs";
 
@@ -130,7 +130,12 @@ test("recordCollection generates a unique 10-char id and tags tenant fastrak", a
     { customer_id: cust.id, lines: [{ ar_id: ar1.id, amount: "5.00" }] },
     d
   );
-  const b = await recordCollection({ customer_id: cust.id, lines: [] }, d);
+  // A second valid (positive) collection — pays ar1's remaining 5.00 — so we can assert
+  // the ids differ. (An empty/zero collection is now rejected; see its own test below.)
+  const b = await recordCollection(
+    { customer_id: cust.id, lines: [{ ar_id: ar1.id, amount: "5.00" }] },
+    d
+  );
   expect(a.id).not.toBe(b.id);
   expect(a.id).toHaveLength(10);
 
@@ -158,6 +163,64 @@ test("a collection never reduces an A/R below zero (overpaying a row clamps the 
   expect(col.lines[0]?.amount).toBe("100.00");
   expect(col.total).toBe("100.00");
   expect(await balanceForCustomer(cust.id, q)).toBe("0.00");
+  await db.close();
+});
+
+// ---------------------------------------------------------------------------
+// VALIDATION & SECURITY
+// ---------------------------------------------------------------------------
+
+test("a collection cannot pay down another customer's receivable", async () => {
+  const db = await createTestDb();
+  const q = executor(db);
+  const d = asDb(db);
+  const a = await createCustomer({ name: "Customer A", terms_days: 30 }, q);
+  const b = await createCustomer({ name: "Customer B", terms_days: 30 }, q);
+  const arB = await raiseAR(db, b.id, "DR-XB", "100.00");
+
+  // Customer A tries to settle Customer B's receivable -> rejected, nothing written.
+  await expect(
+    recordCollection(
+      { customer_id: a.id, lines: [{ ar_id: arB.id, amount: "100.00" }] },
+      d
+    )
+  ).rejects.toThrow(/different customer/i);
+
+  expect((await getAR(arB.id, q))?.amount).toBe("100.00"); // untouched
+  const cols = await q("select count(*)::int as n from col");
+  expect((cols[0] as { n: number }).n).toBe(0);
+  await db.close();
+});
+
+test("an empty / zero collection is rejected (no header left behind)", async () => {
+  const db = await createTestDb();
+  const q = executor(db);
+  const d = asDb(db);
+  const cust = await createCustomer({ name: "Empty" }, q);
+  await expect(
+    recordCollection({ customer_id: cust.id, lines: [] }, d)
+  ).rejects.toThrow(/positive amount/i);
+  const cols = await q("select count(*)::int as n from col");
+  expect((cols[0] as { n: number }).n).toBe(0);
+  await db.close();
+});
+
+test("a DR whose receivable has been collected cannot be cancelled", async () => {
+  const db = await createTestDb();
+  const q = executor(db);
+  const d = asDb(db);
+  const cust = await createCustomer({ name: "Collected", terms_days: 30 }, q);
+  const ar = await raiseAR(db, cust.id, "DR-XC", "100.00");
+
+  await recordCollection(
+    { customer_id: cust.id, lines: [{ ar_id: ar.id, amount: "40.00" }] },
+    d
+  );
+
+  // Cancelling the DR would orphan the collection -> refused with a clear error,
+  // and the (reduced) receivable stays intact.
+  await expect(cancelDR(ar.dr_id!, d)).rejects.toThrow(/collections applied/i);
+  expect((await getAR(ar.id, q))?.amount).toBe("60.00");
   await db.close();
 });
 
