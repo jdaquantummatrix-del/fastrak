@@ -13,6 +13,24 @@ export default function Home() {
           <li>
             <a href="/customers">Customers</a> — list of migrated customers
           </li>
+          <li>
+            <a href="/units">Units</a> — reference data (unit.dbf)
+          </li>
+          <li>
+            <a href="/categories">Categories</a> — reference data (category.dbf)
+          </li>
+          <li>
+            <a href="/brands">Brands</a> — reference data (brand.dbf)
+          </li>
+          <li>
+            <a href="/suppliers">Suppliers</a> — reference data (supplier.dbf)
+          </li>
+          <li>
+            <a href="/settings">Settings</a> — company &amp; app defaults
+          </li>
+          <li>
+            <a href="/login">Sign in</a> — shared-password gate
+          </li>
         </ul>
         <p className="muted" style={{ marginBottom: 0, fontSize: 13 }}>
           More modules (items, delivery receipts, A/R, collections) come as we thicken the
