@@ -5,28 +5,33 @@ import { redirect } from "next/navigation";
 import {
   SESSION_COOKIE,
   SESSION_MAX_AGE_SECONDS,
-  passwordMatches,
   signSession,
   getSessionSecret
 } from "@/lib/auth";
+import { getUserByUsername, recordLogin } from "@/lib/users";
+import { verifyPassword } from "@/lib/password";
 
-// Server Action for the shared-password login form (app/login/page.tsx).
-// On a correct password we mint a signed session token and drop it as a
-// signed, httpOnly cookie; the middleware checks that cookie on every request.
-// On a wrong password we bounce back to /login?error=1 (no detail leaked).
-//
-// `next` is the path the user was originally heading to before the gate sent
-// them to /login — we send them back there after a successful login.
+// Server Action for the username + password login form (app/login/page.tsx).
+// On valid credentials we mint a session token carrying the user's id and drop
+// it as a signed, httpOnly cookie; the middleware checks that cookie on every
+// request. On any failure we bounce back to /login?error=1 — the message is
+// deliberately generic ("wrong username or password") so it never reveals
+// whether a username exists.
 export async function loginAction(formData: FormData) {
-  const submitted = String(formData.get("password") ?? "");
+  const username = String(formData.get("username") ?? "").trim();
+  const password = String(formData.get("password") ?? "");
   const next = sanitizeNext(String(formData.get("next") ?? "/"));
 
-  const configured = process.env.APP_PASSWORD ?? "";
-  if (!passwordMatches(submitted, configured)) {
+  const account = await getUserByUsername(username);
+  if (
+    !account ||
+    !account.isActive ||
+    !verifyPassword(password, account.passwordHash)
+  ) {
     redirect(`/login?error=1&next=${encodeURIComponent(next)}`);
   }
 
-  const token = await signSession(getSessionSecret());
+  const token = await signSession(getSessionSecret(), account.id);
   const jar = await cookies();
   jar.set(SESSION_COOKIE, token, {
     httpOnly: true,
@@ -36,6 +41,7 @@ export async function loginAction(formData: FormData) {
     maxAge: SESSION_MAX_AGE_SECONDS
   });
 
+  await recordLogin(account.id);
   redirect(next);
 }
 

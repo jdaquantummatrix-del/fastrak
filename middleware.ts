@@ -18,8 +18,14 @@ export async function middleware(req: NextRequest) {
   if (pathname === "/login") return NextResponse.next();
 
   const token = req.cookies.get(SESSION_COOKIE)?.value ?? "";
-  const ok = await verifySession(token, getSessionSecret());
-  if (ok) return NextResponse.next();
+  const session = await verifySession(token, getSessionSecret());
+  if (session) {
+    // Forward the path so the root layout can enforce per-module access (the
+    // layout can't see the URL otherwise). Only set for authenticated requests.
+    const requestHeaders = new Headers(req.headers);
+    requestHeaders.set("x-pathname", pathname);
+    return NextResponse.next({ request: { headers: requestHeaders } });
+  }
 
   // Not authenticated -> send to /login, remembering where they were headed so
   // we can return them there after a successful sign-in.

@@ -27,7 +27,7 @@ export default async function LoginPage({
 
         <h1 style={{ fontSize: 18 }}>Sign in</h1>
         <p className="muted" style={{ fontSize: 13.5, marginBottom: 18 }}>
-          Enter the shared password to continue.
+          Enter your username and password to continue.
         </p>
 
         {error ? (
@@ -35,13 +35,27 @@ export default async function LoginPage({
             className="notice notice-error"
             style={{ marginBottom: 14, padding: "10px 12px" }}
           >
-            <strong>Incorrect password.</strong>{" "}
+            <strong>Wrong username or password.</strong>{" "}
             <span className="muted">Try again.</span>
           </div>
         ) : null}
 
         <form action={loginAction}>
           <input type="hidden" name="next" value={safeNext} />
+          <label className="field-label" htmlFor="username">
+            Username
+          </label>
+          <input
+            id="username"
+            name="username"
+            type="text"
+            autoFocus
+            autoComplete="username"
+            autoCapitalize="none"
+            spellCheck={false}
+            required
+            style={{ marginBottom: 14 }}
+          />
           <label className="field-label" htmlFor="pw">
             Password
           </label>
@@ -49,7 +63,6 @@ export default async function LoginPage({
             id="pw"
             name="password"
             type="password"
-            autoFocus
             autoComplete="current-password"
             required
           />

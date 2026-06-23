@@ -1,0 +1,22 @@
+# Keep the build context small and the image clean. Anything here is NOT sent to
+# the Docker daemon or copied into the image.
+node_modules
+.next
+.git
+.pglite
+.env
+.env.*
+!.env.example
+incoming
+learning
+docs
+*.log
+*.dbf
+*.DBF
+.DS_Store
+Thumbs.db
+.vscode
+.idea
+.claude
+npm-debug.log*
+*.tsbuildinfo

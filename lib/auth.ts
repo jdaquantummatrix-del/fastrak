@@ -1,14 +1,16 @@
-// S12 Auth (HITL) — the minimal "simple login now" gate.
+// Auth — session cookie signing/verifying for per-user accounts.
 //
-// This is deliberately small: one shared password (APP_PASSWORD) lets a user in,
-// and we hand them a signed, httpOnly session cookie. There are no per-user
-// accounts, roles, or permissions yet — that real model is designed later, see
-// docs/adr/0004-auth-model.md (Status: Proposed).
+// A signed, httpOnly cookie carries the authenticated user's id (`sub`). The
+// signature is HMAC-SHA256 over the payload under the server secret, so the
+// cookie can't be forged and can be verified WITHOUT a database hit (the Edge
+// middleware does exactly that on every request). The account row is loaded from
+// the id only in Node code (see lib/account.ts). Passwords are verified
+// separately, with scrypt, in lib/password.ts.
 //
 // IMPORTANT: this module is imported by BOTH the Edge middleware (middleware.ts)
-// and Node Server Actions (app/login/actions.ts). The Edge runtime has no Node
-// `crypto` module, so we sign/verify with the Web Crypto API (globalThis.crypto
-// / crypto.subtle), which exists in both runtimes. Everything is therefore async.
+// and Node Server Actions. The Edge runtime has no Node `crypto` module, so we
+// sign/verify with the Web Crypto API (globalThis.crypto / crypto.subtle), which
+// exists in both runtimes. Everything is therefore async.
 
 // Cookie name. Namespaced so it can't collide with anything else on the host.
 export const SESSION_COOKIE = "kenny_session";
@@ -58,63 +60,57 @@ function timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
 
 // --- session token ---------------------------------------------------------
 
-// Token format: "<payloadB64url>.<sigB64url>". The payload is JSON holding only
-// an issued-at and expiry (no user identity yet — there are no users). The
-// signature is HMAC-SHA256(payload) under the server secret.
-type SessionPayload = { iat: number; exp: number };
+// Token format: "<payloadB64url>.<sigB64url>". The payload is JSON holding the
+// authenticated user's id (`sub`), an issued-at, and an expiry. The signature is
+// HMAC-SHA256(payload) under the server secret.
+export type SessionPayload = { sub: string; iat: number; exp: number };
 
 export async function signSession(
   secret: string,
+  sub: string,
   nowMs: number = Date.now()
 ): Promise<string> {
   const iat = Math.floor(nowMs / 1000);
-  const payload: SessionPayload = { iat, exp: iat + SESSION_MAX_AGE_SECONDS };
+  const payload: SessionPayload = { sub, iat, exp: iat + SESSION_MAX_AGE_SECONDS };
   const body = bytesToBase64Url(new TextEncoder().encode(JSON.stringify(payload)));
   const sig = bytesToBase64Url(await hmac(secret, body));
   return `${body}.${sig}`;
 }
 
-// Returns true only if `token` is well-formed, the signature matches `secret`,
-// and the token has not expired. Never throws — any malformed input is just false.
+// Returns the payload only if `token` is well-formed, the signature matches
+// `secret`, it carries a `sub`, and it has not expired. Otherwise null. Never
+// throws — any malformed input is just null.
 export async function verifySession(
   token: string,
   secret: string,
   nowMs: number = Date.now()
-): Promise<boolean> {
+): Promise<SessionPayload | null> {
   try {
-    if (!token || !secret) return false;
+    if (!token || !secret) return null;
     const parts = token.split(".");
-    if (parts.length !== 2) return false;
+    if (parts.length !== 2) return null;
     const [body, sig] = parts;
-    if (!body || !sig) return false;
+    if (!body || !sig) return null;
 
     const expected = await hmac(secret, body);
     const given = base64UrlToBytes(sig);
-    if (!timingSafeEqual(expected, given)) return false;
+    if (!timingSafeEqual(expected, given)) return null;
 
     const payload = JSON.parse(
       new TextDecoder().decode(base64UrlToBytes(body))
     ) as SessionPayload;
-    if (typeof payload.exp !== "number") return false;
-    if (Math.floor(nowMs / 1000) >= payload.exp) return false; // expired
-    return true;
+    if (typeof payload.exp !== "number" || typeof payload.sub !== "string") return null;
+    if (!payload.sub) return null;
+    if (Math.floor(nowMs / 1000) >= payload.exp) return null; // expired
+    return payload;
   } catch {
-    return false;
+    return null;
   }
 }
 
-// Exact match of a submitted password against the configured one, in (roughly)
-// constant time. A blank configured password means "no password set" -> always
-// false, so an unconfigured deployment can't be entered with an empty string.
-export function passwordMatches(submitted: string, configured: string): boolean {
-  if (!configured) return false;
-  const enc = new TextEncoder();
-  return timingSafeEqual(enc.encode(submitted), enc.encode(configured));
-}
-
-// The server-side secret used to sign sessions. Falls back to APP_PASSWORD so a
-// minimal deployment only has to set ONE env var; SESSION_SECRET can be set
-// separately for a stronger, independent signing key.
+// The server-side secret used to sign sessions. In production this MUST be set
+// (docker-compose requires it). A loud, obviously-insecure dev fallback keeps
+// `npm run dev` working without configuration.
 export function getSessionSecret(): string {
-  return process.env.SESSION_SECRET || process.env.APP_PASSWORD || "";
+  return process.env.SESSION_SECRET || "kenny-dev-insecure-session-secret-change-me";
 }

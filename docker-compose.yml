@@ -1,3 +1,11 @@
+# Full production stack: the fastrak web app + its Postgres database.
+#
+#   docker compose up -d --build
+#
+# Compose reads variables (SESSION_SECRET, ADMIN_PASSWORD, POSTGRES_PASSWORD…)
+# from a local `.env` file — see .env.example. The app's DATABASE_URL is set
+# HERE (pointing at the `db` service), not in .env, so local `npm run dev` stays
+# on PGlite and only the container talks to Postgres.
 services:
   db:
     image: postgres:16
@@ -5,12 +13,33 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: projectkenny
-    ports:
-      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d projectkenny"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    # No host port published by default — only the app needs to reach it. Add a
+    # `ports: ["5432:5432"]` line temporarily if you want to inspect it directly.
+
+  app:
+    build: .
+    container_name: project-kenny-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/projectkenny
+      SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET in .env (e.g. openssl rand -hex 32)}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme}
+      NODE_ENV: production
+    ports:
+      - "3000:3000"
 
 volumes:
   pgdata:

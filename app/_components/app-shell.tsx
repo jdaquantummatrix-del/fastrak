@@ -3,6 +3,8 @@
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import PageTour from "./page-tour";
+import { moduleKeyForPath } from "@/lib/roles";
+import { logoutAction } from "../login/actions";
 
 // Minimal Feather-style line icons, kept inline so there is no icon dependency.
 const ICONS: Record<string, string> = {
@@ -29,6 +31,8 @@ const ICONS: Record<string, string> = {
   settings:
     '<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>',
   reports: '<path d="M18 20V10M12 20V4M6 20v-6M3 20h18"/>',
+  shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+  user: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
   logout:
     '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>'
 };
@@ -47,7 +51,7 @@ function Icon({ name }: { name: string }) {
   );
 }
 
-type Item = { href: string; label: string; icon: string };
+type Item = { href: string; label: string; icon: string; adminOnly?: boolean };
 const GROUPS: { title?: string; items: Item[] }[] = [
   { items: [{ href: "/", label: "Dashboard", icon: "dashboard" }] },
   {
@@ -87,7 +91,8 @@ const GROUPS: { title?: string; items: Item[] }[] = [
       { href: "/units", label: "Units", icon: "units" },
       { href: "/categories", label: "Categories", icon: "categories" },
       { href: "/brands", label: "Brands", icon: "brands" },
-      { href: "/settings", label: "Settings", icon: "settings" }
+      { href: "/settings", label: "Settings", icon: "settings" },
+      { href: "/users", label: "Manage access", icon: "shield", adminOnly: true }
     ]
   }
 ];
@@ -97,11 +102,30 @@ function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(href + "/");
 }
 
-export default function AppShell({ children }: { children: ReactNode }) {
+type Account = { username: string; name: string | null; isAdmin: boolean };
+
+export default function AppShell({
+  children,
+  account,
+  allowed
+}: {
+  children: ReactNode;
+  account: Account | null;
+  allowed: string[];
+}) {
   const pathname = usePathname() || "/";
 
-  // The login screen stands alone — no sidebar.
-  if (pathname === "/login") return <>{children}</>;
+  // The login screen (and any unauthenticated view) stands alone — no sidebar.
+  if (!account) return <>{children}</>;
+
+  const allowedSet = new Set(allowed);
+  const canSee = (item: Item): boolean => {
+    if (item.href === "/") return true;
+    if (item.adminOnly) return account.isAdmin;
+    if (account.isAdmin) return true;
+    const key = moduleKeyForPath(item.href);
+    return key ? allowedSet.has(key) : true;
+  };
 
   return (
     <div className="app">
@@ -115,28 +139,45 @@ export default function AppShell({ children }: { children: ReactNode }) {
         </div>
 
         <nav className="nav">
-          {GROUPS.map((group, i) => (
-            <div key={i}>
-              {group.title ? <div className="nav-section">{group.title}</div> : null}
-              {group.items.map((item) => (
-                <a
-                  key={item.href}
-                  href={item.href}
-                  className={
-                    "nav-link" + (isActive(pathname, item.href) ? " active" : "")
-                  }
-                >
-                  <Icon name={item.icon} />
-                  {item.label}
-                </a>
-              ))}
-            </div>
-          ))}
+          {GROUPS.map((group, i) => {
+            const items = group.items.filter(canSee);
+            if (items.length === 0) return null;
+            return (
+              <div key={i}>
+                {group.title ? <div className="nav-section">{group.title}</div> : null}
+                {items.map((item) => (
+                  <a
+                    key={item.href}
+                    href={item.href}
+                    className={
+                      "nav-link" + (isActive(pathname, item.href) ? " active" : "")
+                    }
+                  >
+                    <Icon name={item.icon} />
+                    {item.label}
+                  </a>
+                ))}
+              </div>
+            );
+          })}
+
           <div className="nav-spacer" />
-          <a className="nav-link" href="/login">
-            <Icon name="logout" />
-            Sign out
+
+          <a
+            className={"nav-link" + (isActive(pathname, "/account") ? " active" : "")}
+            href="/account"
+          >
+            <Icon name="user" />
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
+              {account.name || account.username}
+            </span>
           </a>
+          <form action={logoutAction}>
+            <button className="nav-link nav-signout" type="submit">
+              <Icon name="logout" />
+              Sign out
+            </button>
+          </form>
         </nav>
       </aside>
 
