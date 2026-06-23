@@ -55,14 +55,22 @@ When it's up, copy its **public IP**.
 
 ### 2. Get the code onto the droplet
 
-SSH in (`ssh root@YOUR_DROPLET_IP`), then either `git clone` your repo or copy
-the folder up with `scp`. For example:
+Open a terminal on the droplet — easiest is the **web console**: in the
+DigitalOcean dashboard, open the droplet → **Access** → **Launch Droplet
+Console** (no SSH key needed). Then install git and clone the repo.
+
+The repo is **private**, so you need a read-only **GitHub token** to clone it:
+on GitHub → *Settings → Developer settings → Personal access tokens →
+Fine-grained tokens → Generate new token* → give it **Read-only** access to the
+`Project-Kenny` repo. Copy the token (starts with `github_pat_…`).
 
 ```bash
-ssh root@YOUR_DROPLET_IP
-git clone https://github.com/jdaquantummatrix-del/Project-Kenny.git
+apt-get update && apt-get install -y git
+git clone https://YOUR_GITHUB_USERNAME:YOUR_TOKEN@github.com/jdaquantummatrix-del/Project-Kenny.git
 cd Project-Kenny
 ```
+
+(The token is only used for this one clone; you can delete it from GitHub after.)
 
 ### 3. Create the `.env` file
 

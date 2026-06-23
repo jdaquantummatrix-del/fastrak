@@ -36,7 +36,10 @@ export async function loginAction(formData: FormData) {
   jar.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    // Secure cookies are only sent over HTTPS. Off by default so the app works
+    // over plain HTTP (e.g. an IP-only demo); set COOKIE_SECURE=true once it is
+    // served over HTTPS (behind a TLS-terminating reverse proxy like Caddy).
+    secure: process.env.COOKIE_SECURE === "true",
     path: "/",
     maxAge: SESSION_MAX_AGE_SECONDS
   });

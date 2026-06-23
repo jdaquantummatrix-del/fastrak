@@ -1,11 +1,36 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { DM_Mono, Inter, DM_Serif_Display } from "next/font/google";
 import "./globals.css";
 import AppShell from "./_components/app-shell";
+import ThemeSwitcher from "./_components/theme-switcher";
 import { getCurrentAccount } from "@/lib/account";
 import { allowedModuleKeys } from "@/lib/users";
 import { moduleKeyForPath } from "@/lib/roles";
+
+// Retro type system. A clean sans for body/headings (readability first), a
+// monospace for the receipt/terminal labels, kickers, badges and table numbers,
+// and ONE retro slab/display face used only for the brand wordmark. Each is
+// exposed as a CSS variable so globals.css can reference it in the font stacks;
+// every face has a system fallback so the design degrades gracefully.
+const sans = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-sans"
+});
+const mono = DM_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  display: "swap",
+  variable: "--font-mono"
+});
+const display = DM_Serif_Display({
+  subsets: ["latin"],
+  weight: ["400"],
+  display: "swap",
+  variable: "--font-display"
+});
 
 export const metadata: Metadata = {
   title: "fastrak — Project Kenny",
@@ -41,11 +66,15 @@ export default async function RootLayout({
   }
 
   return (
-    <html lang="en">
+    <html
+      lang="en"
+      className={`${sans.variable} ${mono.variable} ${display.variable}`}
+    >
       <body>
         <AppShell account={account} allowed={allowed}>
           {children}
         </AppShell>
+        {process.env.NODE_ENV !== "production" ? <ThemeSwitcher /> : null}
       </body>
     </html>
   );

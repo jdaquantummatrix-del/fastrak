@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import PageTour from "./page-tour";
 import { moduleKeyForPath } from "@/lib/roles";
 import { logoutAction } from "../login/actions";
@@ -33,6 +33,7 @@ const ICONS: Record<string, string> = {
   reports: '<path d="M18 20V10M12 20V4M6 20v-6M3 20h18"/>',
   shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
   user: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  menu: '<path d="M3 6h18M3 12h18M3 18h18"/>',
   logout:
     '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>'
 };
@@ -114,6 +115,8 @@ export default function AppShell({
   allowed: string[];
 }) {
   const pathname = usePathname() || "/";
+  // Mobile nav drawer (the fixed sidebar slides in behind a hamburger on phones).
+  const [menuOpen, setMenuOpen] = useState(false);
 
   // The login screen (and any unauthenticated view) stands alone — no sidebar.
   if (!account) return <>{children}</>;
@@ -126,10 +129,25 @@ export default function AppShell({
     const key = moduleKeyForPath(item.href);
     return key ? allowedSet.has(key) : true;
   };
+  const close = () => setMenuOpen(false);
 
   return (
     <div className="app">
-      <aside className="sidebar">
+      <header className="topbar">
+        <button
+          className="burger"
+          type="button"
+          aria-label="Open menu"
+          onClick={() => setMenuOpen(true)}
+        >
+          <Icon name="menu" />
+        </button>
+        <div className="brand-name">fastrak</div>
+      </header>
+
+      {menuOpen ? <div className="scrim" onClick={close} /> : null}
+
+      <aside className={"sidebar" + (menuOpen ? " open" : "")}>
         <div className="brand">
           <div className="brand-mark">f</div>
           <div>
@@ -149,6 +167,7 @@ export default function AppShell({
                   <a
                     key={item.href}
                     href={item.href}
+                    onClick={close}
                     className={
                       "nav-link" + (isActive(pathname, item.href) ? " active" : "")
                     }
@@ -166,6 +185,7 @@ export default function AppShell({
           <a
             className={"nav-link" + (isActive(pathname, "/account") ? " active" : "")}
             href="/account"
+            onClick={close}
           >
             <Icon name="user" />
             <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
