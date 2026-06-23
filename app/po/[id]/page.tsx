@@ -95,8 +95,9 @@ export default async function POPage({
               </tr>
             ) : (
               po.lines.map((line) => {
-                const cost = line.base_cost == null ? null : Number(line.base_cost);
-                const total = cost == null ? null : cost * line.qty;
+                // base_cost * qty is computed in SQL as numeric(14,2) (exact
+                // decimal string) so there is no JS float drift on the display.
+                const total = line.line_total;
                 return (
                   <tr key={line.id}>
                     <td>
@@ -112,7 +113,7 @@ export default async function POPage({
                       {line.base_cost ?? "—"}
                     </td>
                     <td style={{ textAlign: "right" }}>
-                      {total == null ? "—" : total.toFixed(2)}
+                      {total == null ? "—" : total}
                     </td>
                   </tr>
                 );

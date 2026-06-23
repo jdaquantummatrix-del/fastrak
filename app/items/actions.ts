@@ -4,11 +4,14 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createItem, updateItem, type ItemInput } from "@/lib/items";
 
+// pack_size / critical are whole-unit counts -> truncate any fractional input,
+// matching the count() coercion lib/po.ts and lib/inventory.ts use, so an entry
+// like "48.9" is stored as 48 rather than a fraction the integer columns reject.
 function intOrNull(formData: FormData, key: string): number | null {
   const raw = String(formData.get(key) ?? "").trim();
   if (raw === "") return null;
   const n = Number(raw);
-  return Number.isFinite(n) ? n : null;
+  return Number.isFinite(n) ? Math.trunc(n) : null;
 }
 
 function moneyOrNull(formData: FormData, key: string): string | null {

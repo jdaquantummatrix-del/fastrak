@@ -109,14 +109,45 @@ test("stockByItem returns one stock row per item with the correct balance", asyn
   await db.close();
 });
 
-test("recordMovement defaults both quantities to zero", async () => {
+test("recordMovement rejects an empty movement (neither in nor out)", async () => {
   const db = await createTestDb();
   const q = executor(db);
   const item = await createItem({ code: "DEF" }, q);
 
-  const mv = await recordMovement({ itemId: item.id, refType: "po" }, q);
-  expect(mv.qty_in).toBe(0);
-  expect(mv.qty_out).toBe(0);
+  // a movement with no in and no out moves no stock — it is rejected so the
+  // ledger never accumulates meaningless rows.
+  await expect(
+    recordMovement({ itemId: item.id, refType: "po" }, q)
+  ).rejects.toThrow();
+  await db.close();
+});
+
+test("recordMovement rejects a negative quantity", async () => {
+  const db = await createTestDb();
+  const q = executor(db);
+  const item = await createItem({ code: "NEG" }, q);
+
+  await expect(
+    recordMovement({ itemId: item.id, in: -5, refType: "po" }, q)
+  ).rejects.toThrow();
+  await expect(
+    recordMovement({ itemId: item.id, out: -5, refType: "dr" }, q)
+  ).rejects.toThrow();
+  // and nothing was written for either rejected attempt
+  expect(await currentStock(item.id, q)).toBe(0);
+  await db.close();
+});
+
+test("recordMovement rejects a movement carrying BOTH an in and an out", async () => {
+  const db = await createTestDb();
+  const q = executor(db);
+  const item = await createItem({ code: "BOTH" }, q);
+
+  // a single row with in>0 AND out>0 would silently corrupt sum(in)-sum(out)
+  await expect(
+    recordMovement({ itemId: item.id, in: 10, out: 3, refType: "po" }, q)
+  ).rejects.toThrow();
+  expect(await currentStock(item.id, q)).toBe(0);
   await db.close();
 });
 

@@ -1,7 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test, expect } from "vitest";
-import { createTestDb } from "./test-db";
+import { createTestDb, asDb } from "./test-db";
 import {
   createDR,
   updateDR,
@@ -17,7 +17,9 @@ import { createItem } from "./items";
 import { currentStock, listMovements } from "./inventory";
 import { readDbf } from "../scripts/dbf.mjs";
 
-// A PGlite-backed executor matching the lib/db.ts `query` shape.
+// A PGlite-backed executor matching the lib/db.ts `query` shape — for reads and
+// the read-only helpers. Transactional functions (createDR/updateDR/postDR/
+// cancelDR) take a Db instead, built from the same PGlite via asDb.
 function executor(db: Awaited<ReturnType<typeof createTestDb>>) {
   return (text: string, params?: unknown[]) =>
     db.query(text, params).then((r) => r.rows as Record<string, unknown>[]);
@@ -84,6 +86,7 @@ test("computeDRTotals: add-on % and document discount % apply to net", () => {
 test("createDR stores the header and its line items, computing add_amount", async () => {
   const db = await createTestDb();
   const q = executor(db);
+  const d = asDb(db);
   const cust = await createCustomer({ name: "Acme Buyer", terms_days: 30 }, q);
   const widget = await createItem({ code: "WIDGET" }, q);
 
@@ -100,7 +103,7 @@ test("createDR stores the header and its line items, computing add_amount", asyn
         { item_id: widget.id, qty: 5, qty2: 240, price: "20.00", disc: 5, unit: "BOX" }
       ]
     },
-    q
+    d
   );
 
   expect(dr.id).toHaveLength(10);
@@ -125,11 +128,12 @@ test("createDR stores the header and its line items, computing add_amount", asyn
 test("listDRs returns headers without lines; getDR returns lines", async () => {
   const db = await createTestDb();
   const q = executor(db);
+  const d = asDb(db);
   const item = await createItem({ code: "A" }, q);
 
   const created = await createDR(
     { dr_no: "DR-9", lines: [{ item_id: item.id, qty: 1, qty2: 3, price: "1.00" }] },
-    q
+    d
   );
 
   const list = await listDRs(q);
@@ -153,13 +157,14 @@ test("getDR returns null for an unknown id", async () => {
 test("createDR generates a unique 10-char id and tags tenant fastrak", async () => {
   const db = await createTestDb();
   const q = executor(db);
+  const d = asDb(db);
   const item = await createItem({ code: "T" }, q);
 
   const a = await createDR(
     { dr_no: "X", lines: [{ item_id: item.id, qty: 1, qty2: 1, price: "1.00" }] },
-    q
+    d
   );
-  const b = await createDR({ dr_no: "Y" }, q);
+  const b = await createDR({ dr_no: "Y" }, d);
   expect(a.id).not.toBe(b.id);
   expect(a.id).toHaveLength(10);
 
@@ -173,11 +178,12 @@ test("createDR generates a unique 10-char id and tags tenant fastrak", async () 
 test("updateDR replaces header fields and line items and recomputes totals", async () => {
   const db = await createTestDb();
   const q = executor(db);
+  const d = asDb(db);
   const item = await createItem({ code: "U" }, q);
 
   const dr = await createDR(
     { dr_no: "OLD", lines: [{ item_id: item.id, qty: 1, qty2: 1, price: "1.00" }] },
-    q
+    d
   );
 
   const updated = await updateDR(
@@ -187,7 +193,7 @@ test("updateDR replaces header fields and line items and recomputes totals", asy
       add_pct: 10,
       lines: [{ item_id: item.id, qty: 2, qty2: 200, price: "5.00", disc: 0 }]
     },
-    q
+    d
   );
   expect(updated.dr_no).toBe("NEW");
   expect(updated.lines).toHaveLength(1);
@@ -204,8 +210,8 @@ test("updateDR replaces header fields and line items and recomputes totals", asy
 
 test("createDR stores a blank dr_no as null", async () => {
   const db = await createTestDb();
-  const q = executor(db);
-  const dr = await createDR({ dr_no: "   " }, q);
+  const d = asDb(db);
+  const dr = await createDR({ dr_no: "   " }, d);
   expect(dr.dr_no).toBeNull();
   await db.close();
 });
@@ -217,6 +223,7 @@ test("createDR stores a blank dr_no as null", async () => {
 test("postDR releases stock OUT per line using qty2 (pieces), marks posted", async () => {
   const db = await createTestDb();
   const q = executor(db);
+  const d = asDb(db);
   const widget = await createItem({ code: "WIDGET" }, q);
   const gadget = await createItem({ code: "GADGET" }, q);
 
@@ -235,10 +242,10 @@ test("postDR releases stock OUT per line using qty2 (pieces), marks posted", asy
         { item_id: gadget.id, qty: 2, qty2: 48, price: "8.50" }
       ]
     },
-    q
+    d
   );
 
-  const posted = await postDR(dr.id, q);
+  const posted = await postDR(dr.id, d);
   expect(posted.posted).toBe(true);
 
   // stock fell by qty2 (pieces), not qty (boxes)
@@ -256,17 +263,18 @@ test("postDR releases stock OUT per line using qty2 (pieces), marks posted", asy
 test("postDR is idempotent — posting twice does not double the OUT", async () => {
   const db = await createTestDb();
   const q = executor(db);
+  const d = asDb(db);
   const item = await createItem({ code: "ONCE" }, q);
   const { recordMovement } = await import("./inventory");
   await recordMovement({ itemId: item.id, in: 100 }, q);
 
   const dr = await createDR(
     { dr_no: "IDEM", lines: [{ item_id: item.id, qty: 1, qty2: 25, price: "1.00" }] },
-    q
+    d
   );
-  await postDR(dr.id, q);
+  await postDR(dr.id, d);
   expect(await currentStock(item.id, q)).toBe(75);
-  await postDR(dr.id, q);
+  await postDR(dr.id, d);
   expect(await currentStock(item.id, q)).toBe(75);
   await db.close();
 });
@@ -274,18 +282,19 @@ test("postDR is idempotent — posting twice does not double the OUT", async () 
 test("cancelDR reverses a posted DR's stock and marks cancelled", async () => {
   const db = await createTestDb();
   const q = executor(db);
+  const d = asDb(db);
   const item = await createItem({ code: "REV" }, q);
   const { recordMovement } = await import("./inventory");
   await recordMovement({ itemId: item.id, in: 100 }, q);
 
   const dr = await createDR(
     { dr_no: "CAN", lines: [{ item_id: item.id, qty: 1, qty2: 30, price: "1.00" }] },
-    q
+    d
   );
-  await postDR(dr.id, q);
+  await postDR(dr.id, d);
   expect(await currentStock(item.id, q)).toBe(70);
 
-  const cancelled = await cancelDR(dr.id, q);
+  const cancelled = await cancelDR(dr.id, d);
   expect(cancelled.cancelled).toBe(true);
   expect(cancelled.posted).toBe(false);
   // the OUT was reversed by an offsetting IN -> stock back to 100
@@ -296,13 +305,14 @@ test("cancelDR reverses a posted DR's stock and marks cancelled", async () => {
 test("cancelDR on an unposted DR just marks it cancelled (no movements)", async () => {
   const db = await createTestDb();
   const q = executor(db);
+  const d = asDb(db);
   const item = await createItem({ code: "X" }, q);
 
   const dr = await createDR(
     { dr_no: "U", lines: [{ item_id: item.id, qty: 1, qty2: 5, price: "1.00" }] },
-    q
+    d
   );
-  const cancelled = await cancelDR(dr.id, q);
+  const cancelled = await cancelDR(dr.id, d);
   expect(cancelled.cancelled).toBe(true);
   const moves = await listMovements(q, item.id);
   expect(moves).toHaveLength(0);
@@ -311,10 +321,118 @@ test("cancelDR on an unposted DR just marks it cancelled (no movements)", async 
 
 test("postDR throws for a cancelled DR", async () => {
   const db = await createTestDb();
+  const d = asDb(db);
+  const dr = await createDR({ dr_no: "C" }, d);
+  await cancelDR(dr.id, d);
+  await expect(postDR(dr.id, d)).rejects.toThrow();
+  await db.close();
+});
+
+// ---------------------------------------------------------------------------
+// Atomicity / rollback — multi-step writes are all-or-nothing (issue: fix #1)
+// ---------------------------------------------------------------------------
+
+// A Db that runs a real PGlite transaction but throws after the Nth inventory
+// insert inside it — to prove postDR posts all OUT movements + the flag flip as
+// one unit (a failure partway leaves NOTHING committed).
+function failingAfter(
+  db: Awaited<ReturnType<typeof createTestDb>>,
+  failOnInsertNumber: number
+): import("./db").Db {
+  let inserts = 0;
+  return {
+    query: (text, params) =>
+      db.query(text, params).then((r) => r.rows as Record<string, unknown>[]),
+    transaction: (fn) =>
+      db.transaction(async (tx) => {
+        const exec = (text: string, params?: unknown[]) => {
+          if (/insert into inventory/i.test(text)) {
+            inserts += 1;
+            if (inserts === failOnInsertNumber) {
+              throw new Error("injected failure mid-transaction");
+            }
+          }
+          return tx
+            .query(text, params)
+            .then((r) => r.rows as Record<string, unknown>[]);
+        };
+        return fn(exec);
+      })
+  };
+}
+
+test("createDR rolls back the header AND all lines when a later line fails", async () => {
+  const db = await createTestDb();
   const q = executor(db);
-  const dr = await createDR({ dr_no: "C" }, q);
-  await cancelDR(dr.id, q);
-  await expect(postDR(dr.id, q)).rejects.toThrow();
+  const d = asDb(db);
+  const good = await createItem({ code: "GOOD" }, q);
+
+  // The second line references a non-existent item -> drdet's item_id FK fails
+  // partway. The whole createDR must roll back: no dr header, no drdet rows.
+  await expect(
+    createDR(
+      {
+        dr_no: "ROLLBACK",
+        lines: [
+          { item_id: good.id, qty: 1, qty2: 10, price: "1.00" },
+          { item_id: "NOSUCHITEM", qty: 1, qty2: 5, price: "2.00" }
+        ]
+      },
+      d
+    )
+  ).rejects.toThrow();
+
+  const headers = await q("select count(*)::int as n from dr");
+  expect((headers[0] as { n: number }).n).toBe(0);
+  const lines = await q("select count(*)::int as n from drdet");
+  expect((lines[0] as { n: number }).n).toBe(0);
+  await db.close();
+});
+
+test("postDR rolls back all OUT movements when posting fails partway, and a retry does not double-release stock", async () => {
+  const db = await createTestDb();
+  const q = executor(db);
+  const d = asDb(db);
+  const widget = await createItem({ code: "WIDGET" }, q);
+  const gadget = await createItem({ code: "GADGET" }, q);
+  const { recordMovement } = await import("./inventory");
+  await recordMovement({ itemId: widget.id, in: 1000 }, q);
+  await recordMovement({ itemId: gadget.id, in: 1000 }, q);
+
+  const dr = await createDR(
+    {
+      dr_no: "POST-FAIL",
+      dr_date: "2024-03-10",
+      lines: [
+        { item_id: widget.id, qty: 5, qty2: 240, price: "20.00" },
+        { item_id: gadget.id, qty: 2, qty2: 48, price: "8.50" }
+      ]
+    },
+    d
+  );
+
+  // Fail on the SECOND inventory insert: the first OUT (widget) is written, then
+  // the transaction throws. It must all roll back — no movements written by the
+  // post, posted still false — so re-clicking Post cannot double-release stock.
+  const poison = failingAfter(db, 2);
+  await expect(postDR(dr.id, poison)).rejects.toThrow();
+
+  expect(await currentStock(widget.id, q)).toBe(1000);
+  expect(await currentStock(gadget.id, q)).toBe(1000);
+  // only the two seed IN movements exist; the post wrote no OUT movement
+  expect(await listMovements(q)).toHaveLength(2);
+  const reread = await getDR(dr.id, q);
+  expect(reread?.posted).toBe(false);
+
+  // Retry through a healthy Db: stock falls exactly once.
+  await postDR(dr.id, d);
+  expect(await currentStock(widget.id, q)).toBe(760); // 1000 - 240
+  expect(await currentStock(gadget.id, q)).toBe(952); // 1000 - 48
+
+  // a second post is still a no-op (idempotent on top of atomic)
+  await postDR(dr.id, d);
+  expect(await currentStock(widget.id, q)).toBe(760);
+  expect(await currentStock(gadget.id, q)).toBe(952);
   await db.close();
 });
 

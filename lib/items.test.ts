@@ -170,6 +170,45 @@ test("updateItem changes fields including money and inactive flag", async () => 
   await db.close();
 });
 
+test("updateItem preserves the existing pic when the edit does not supply one", async () => {
+  const db = await createTestDb();
+  const q = executor(db);
+
+  // an item created with an image path
+  const created = await createItem(
+    { code: "HASPIC", pic: "items/haspic.jpg" },
+    q
+  );
+  expect(created.pic).toBe("items/haspic.jpg");
+
+  // the edit form has no pic field, so input.pic is undefined — pic must survive
+  const updated = await updateItem(
+    created.id,
+    { code: "HASPIC", description: "now described" },
+    q
+  );
+  expect(updated.description).toBe("now described");
+  expect(updated.pic).toBe("items/haspic.jpg");
+
+  // and a fresh read confirms it was not nulled in the DB
+  const reread = await getItem(created.id, q);
+  expect(reread?.pic).toBe("items/haspic.jpg");
+  await db.close();
+});
+
+test("updateItem can still set a new pic when one is supplied", async () => {
+  const db = await createTestDb();
+  const q = executor(db);
+  const created = await createItem({ code: "NEWPIC", pic: "old.jpg" }, q);
+  const updated = await updateItem(
+    created.id,
+    { code: "NEWPIC", pic: "new.jpg" },
+    q
+  );
+  expect(updated.pic).toBe("new.jpg");
+  await db.close();
+});
+
 test("updateItem rejects a blank code", async () => {
   const db = await createTestDb();
   const q = executor(db);

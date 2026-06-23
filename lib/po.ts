@@ -12,6 +12,7 @@
 // movement (refType 'po') so current stock rises by the ordered quantity. It is
 // idempotent — an already-received PO is a no-op, so stock is never doubled.
 import { type Executor, defaultExecutor, newId, clean } from "./reference";
+import { type Db, appDb } from "./db";
 import { recordMovement } from "./inventory";
 
 export type POLine = {
@@ -27,6 +28,9 @@ export type POLine = {
   unit2: string | null;
   qty2: number | null;
   pcs: number | null;
+  // base_cost * qty computed in SQL as numeric(14,2) -> exact decimal string
+  // (no JS float drift); null when the line has no base_cost.
+  line_total: string | null;
 };
 
 export type POHeader = {
@@ -70,7 +74,7 @@ const HEADER_COLUMNS =
 
 const LINE_COLUMNS =
   "id, po_id, item_id, description, code, base_cost, qty, unit, pack_size, " +
-  "unit2, qty2, pcs";
+  "unit2, qty2, pcs, (base_cost * qty)::numeric(14,2) as line_total";
 
 // A whole-unit count -> 0 when blank/missing (a line always has a qty).
 function count(v: number | null | undefined): number {
@@ -132,33 +136,33 @@ async function linesFor(poId: string, exec: Executor): Promise<POLine[]> {
   )) as POLine[];
 }
 
-// Create a PO header and its line items. Returns the full PO (header + lines).
-export async function createPO(
-  input: POInput,
-  exec: Executor = defaultExecutor
-): Promise<PO> {
-  const id = newId();
-  const headerRows = await exec(
-    `insert into po
-       (id, tenant_id, po_no, po_date, supplier_id, supplier_name, remarks, received)
-     values ($1,'fastrak',$2,$3,$4,$5,$6,false)
-     returning ${HEADER_COLUMNS}`,
-    [
-      id,
-      clean(input.po_no),
-      clean(input.po_date),
-      clean(input.supplier_id),
-      clean(input.supplier_name),
-      clean(input.remarks)
-    ]
-  );
-  const header = headerRows[0] as POHeader;
+// Create a PO header and its line items, atomically — the header and every line
+// commit together, or none do. Returns the full PO (header + lines).
+export async function createPO(input: POInput, db: Db = appDb): Promise<PO> {
+  return db.transaction(async (exec) => {
+    const id = newId();
+    const headerRows = await exec(
+      `insert into po
+         (id, tenant_id, po_no, po_date, supplier_id, supplier_name, remarks, received)
+       values ($1,'fastrak',$2,$3,$4,$5,$6,false)
+       returning ${HEADER_COLUMNS}`,
+      [
+        id,
+        clean(input.po_no),
+        clean(input.po_date),
+        clean(input.supplier_id),
+        clean(input.supplier_name),
+        clean(input.remarks)
+      ]
+    );
+    const header = headerRows[0] as POHeader;
 
-  const lines: POLine[] = [];
-  for (const line of input.lines ?? []) {
-    lines.push(await insertLine(id, line, exec));
-  }
-  return { ...header, lines };
+    const lines: POLine[] = [];
+    for (const line of input.lines ?? []) {
+      lines.push(await insertLine(id, line, exec));
+    }
+    return { ...header, lines };
+  });
 }
 
 // Every PO header, newest-ordered first (no lines — for the list screen).
@@ -188,34 +192,37 @@ export async function getPO(
 // (refType 'po') so current stock rises by the ordered quantity, then mark the
 // header received. Idempotent — an already-received PO is returned unchanged, so
 // the stock is never doubled.
-export async function receivePO(
-  id: string,
-  exec: Executor = defaultExecutor
-): Promise<PO> {
-  const existing = await getPO(id, exec);
+export async function receivePO(id: string, db: Db = appDb): Promise<PO> {
+  const existing = await getPO(id, db.query);
   if (!existing) throw new Error(`PO ${id} not found`);
   if (existing.received) return existing;
 
-  for (const line of existing.lines) {
-    if (!line.item_id) continue; // a line with no item can't move stock
-    await recordMovement(
-      {
-        itemId: line.item_id,
-        in: line.qty,
-        refType: "po",
-        refId: id,
-        refNo: existing.po_no,
-        date: existing.po_date,
-        name: "Purchase Order"
-      },
-      exec
-    );
-  }
+  // All movements AND the received flip happen in one transaction: if any step
+  // fails, nothing commits, so a retry can't double-count stock (the previous
+  // attempt left no movements and `received` still false).
+  return db.transaction(async (exec) => {
+    for (const line of existing.lines) {
+      if (!line.item_id) continue; // a line with no item can't move stock
+      if (line.qty === 0) continue; // a zero-qty line moves no stock
+      await recordMovement(
+        {
+          itemId: line.item_id,
+          in: line.qty,
+          refType: "po",
+          refId: id,
+          refNo: existing.po_no,
+          date: existing.po_date,
+          name: "Purchase Order"
+        },
+        exec
+      );
+    }
 
-  const updated = (await exec(
-    `update po set received = true, updated_at = now()
-      where id = $1 returning ${HEADER_COLUMNS}`,
-    [id]
-  )) as POHeader[];
-  return { ...(updated[0] as POHeader), lines: existing.lines };
+    const updated = (await exec(
+      `update po set received = true, updated_at = now()
+        where id = $1 returning ${HEADER_COLUMNS}`,
+      [id]
+    )) as POHeader[];
+    return { ...(updated[0] as POHeader), lines: existing.lines };
+  });
 }

@@ -67,12 +67,33 @@ function count(v: number | null | undefined): number {
   return Math.trunc(v);
 }
 
+// Validate the in/out quantities before a movement is written. A movement must
+// be EITHER an in OR an out — never negative, never both, never empty — because
+// currentStock = sum(in) - sum(out): a negative qty, or one row carrying both,
+// silently corrupts the balance. (NB: in/out are truncated to whole units first,
+// so a fractional 0.4 reads as 0 and is rejected as empty.)
+function validateQuantities(qtyIn: number, qtyOut: number): void {
+  if (qtyIn < 0 || qtyOut < 0) {
+    throw new Error("movement quantities cannot be negative");
+  }
+  if (qtyIn > 0 && qtyOut > 0) {
+    throw new Error("a movement must be either an in or an out, not both");
+  }
+  if (qtyIn === 0 && qtyOut === 0) {
+    throw new Error("a movement must have a non-zero in or out quantity");
+  }
+}
+
 // Record one stock movement. `refType` + `refId` route the source-document id to
 // the matching column (po_id / dr_id / dscrp_id / return_id).
 export async function recordMovement(
   input: MovementInput,
   exec: Executor = defaultExecutor
 ): Promise<Movement> {
+  const qtyIn = count(input.in);
+  const qtyOut = count(input.out);
+  validateQuantities(qtyIn, qtyOut);
+
   const id = newId();
   const refIds: Record<string, string | null> = {
     po_id: null,
@@ -96,8 +117,8 @@ export async function recordMovement(
       input.itemId,
       clean(input.refNo),
       clean(input.date),
-      count(input.in),
-      count(input.out),
+      qtyIn,
+      qtyOut,
       clean(input.name),
       refIds.po_id,
       refIds.dr_id,

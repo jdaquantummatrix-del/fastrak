@@ -28,6 +28,7 @@
 // float, so there is no drift (ADR-0001 fidelity). Internally we compute in integer
 // centavos with FoxPro's round-half-away-from-zero, then format back to a string.
 import { type Executor, defaultExecutor, newId, clean } from "./reference";
+import { type Db, appDb } from "./db";
 import { recordMovement } from "./inventory";
 
 export type DRLine = {
@@ -274,44 +275,43 @@ async function hydrate(header: DRHeader, exec: Executor): Promise<DR> {
 // Create a DR header and its line items. The add-on currency (YADD) is computed and
 // stored on the header so it matches fastrak's stored value; the other totals are
 // derived on read. Returns the full DR (header + lines + totals).
-export async function createDR(
-  input: DRInput,
-  exec: Executor = defaultExecutor
-): Promise<DR> {
-  const id = newId();
-  const lineInputs = input.lines ?? [];
-  const { add_amount } = computeDRTotals(input, lineInputs);
+export async function createDR(input: DRInput, db: Db = appDb): Promise<DR> {
+  return db.transaction(async (exec) => {
+    const id = newId();
+    const lineInputs = input.lines ?? [];
+    const { add_amount } = computeDRTotals(input, lineInputs);
 
-  const headerRows = await exec(
-    `insert into dr
-       (id, tenant_id, dr_no, customer_id, address, dr_date, remarks, terms_days,
-        po_no, doc_disc, doc_disc2, add_pct, add_amount, type, dr_si,
-        posted, cancelled)
-     values ($1,'fastrak',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,false,false)
-     returning ${HEADER_COLUMNS}`,
-    [
-      id,
-      clean(input.dr_no),
-      clean(input.customer_id),
-      clean(input.address),
-      clean(input.dr_date),
-      clean(input.remarks),
-      count(input.terms_days),
-      clean(input.po_no),
-      pct(input.doc_disc),
-      pct(input.doc_disc2),
-      pct(input.add_pct),
-      add_amount,
-      clean(input.type),
-      clean(input.dr_si)
-    ]
-  );
-  const header = headerRows[0] as DRHeader;
+    const headerRows = await exec(
+      `insert into dr
+         (id, tenant_id, dr_no, customer_id, address, dr_date, remarks, terms_days,
+          po_no, doc_disc, doc_disc2, add_pct, add_amount, type, dr_si,
+          posted, cancelled)
+       values ($1,'fastrak',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,false,false)
+       returning ${HEADER_COLUMNS}`,
+      [
+        id,
+        clean(input.dr_no),
+        clean(input.customer_id),
+        clean(input.address),
+        clean(input.dr_date),
+        clean(input.remarks),
+        count(input.terms_days),
+        clean(input.po_no),
+        pct(input.doc_disc),
+        pct(input.doc_disc2),
+        pct(input.add_pct),
+        add_amount,
+        clean(input.type),
+        clean(input.dr_si)
+      ]
+    );
+    const header = headerRows[0] as DRHeader;
 
-  for (const line of lineInputs) {
-    await insertLine(id, line, exec);
-  }
-  return hydrate(header, exec);
+    for (const line of lineInputs) {
+      await insertLine(id, line, exec);
+    }
+    return hydrate(header, exec);
+  });
 }
 
 // Replace a DR's header fields and its line items (lines are deleted + reinserted,
@@ -320,48 +320,50 @@ export async function createDR(
 export async function updateDR(
   id: string,
   input: DRInput,
-  exec: Executor = defaultExecutor
+  db: Db = appDb
 ): Promise<DR> {
-  const existing = (await exec(`select posted from dr where id = $1`, [id])) as {
-    posted: boolean;
-  }[];
-  if (existing.length === 0) throw new Error(`DR ${id} not found`);
-  if (existing[0]?.posted) throw new Error(`DR ${id} is posted and cannot be edited`);
+  return db.transaction(async (exec) => {
+    const existing = (await exec(`select posted from dr where id = $1`, [id])) as {
+      posted: boolean;
+    }[];
+    if (existing.length === 0) throw new Error(`DR ${id} not found`);
+    if (existing[0]?.posted) throw new Error(`DR ${id} is posted and cannot be edited`);
 
-  const lineInputs = input.lines ?? [];
-  const { add_amount } = computeDRTotals(input, lineInputs);
+    const lineInputs = input.lines ?? [];
+    const { add_amount } = computeDRTotals(input, lineInputs);
 
-  const headerRows = await exec(
-    `update dr set
-       dr_no = $2, customer_id = $3, address = $4, dr_date = $5, remarks = $6,
-       terms_days = $7, po_no = $8, doc_disc = $9, doc_disc2 = $10, add_pct = $11,
-       add_amount = $12, type = $13, dr_si = $14, updated_at = now()
-     where id = $1
-     returning ${HEADER_COLUMNS}`,
-    [
-      id,
-      clean(input.dr_no),
-      clean(input.customer_id),
-      clean(input.address),
-      clean(input.dr_date),
-      clean(input.remarks),
-      count(input.terms_days),
-      clean(input.po_no),
-      pct(input.doc_disc),
-      pct(input.doc_disc2),
-      pct(input.add_pct),
-      add_amount,
-      clean(input.type),
-      clean(input.dr_si)
-    ]
-  );
-  const header = headerRows[0] as DRHeader;
+    const headerRows = await exec(
+      `update dr set
+         dr_no = $2, customer_id = $3, address = $4, dr_date = $5, remarks = $6,
+         terms_days = $7, po_no = $8, doc_disc = $9, doc_disc2 = $10, add_pct = $11,
+         add_amount = $12, type = $13, dr_si = $14, updated_at = now()
+       where id = $1
+       returning ${HEADER_COLUMNS}`,
+      [
+        id,
+        clean(input.dr_no),
+        clean(input.customer_id),
+        clean(input.address),
+        clean(input.dr_date),
+        clean(input.remarks),
+        count(input.terms_days),
+        clean(input.po_no),
+        pct(input.doc_disc),
+        pct(input.doc_disc2),
+        pct(input.add_pct),
+        add_amount,
+        clean(input.type),
+        clean(input.dr_si)
+      ]
+    );
+    const header = headerRows[0] as DRHeader;
 
-  await exec(`delete from drdet where dr_id = $1`, [id]);
-  for (const line of lineInputs) {
-    await insertLine(id, line, exec);
-  }
-  return hydrate(header, exec);
+    await exec(`delete from drdet where dr_id = $1`, [id]);
+    for (const line of lineInputs) {
+      await insertLine(id, line, exec);
+    }
+    return hydrate(header, exec);
+  });
 }
 
 // Every DR header, newest first (no lines/totals — for the list screen).
@@ -392,75 +394,77 @@ export async function getDR(
 // header posted. Idempotent: an already-posted DR is returned unchanged so stock is
 // never double-released. Refuses a cancelled DR. (A/R is a later slice; the grand
 // total fastrak would post to A/R is available as the returned DR's `total`.)
-export async function postDR(
-  id: string,
-  exec: Executor = defaultExecutor
-): Promise<DR> {
-  const existing = await getDR(id, exec);
+export async function postDR(id: string, db: Db = appDb): Promise<DR> {
+  const existing = await getDR(id, db.query);
   if (!existing) throw new Error(`DR ${id} not found`);
   if (existing.cancelled) throw new Error(`DR ${id} is cancelled and cannot be posted`);
   if (existing.posted) return existing;
 
-  for (const line of existing.lines) {
-    if (!line.item_id) continue; // a line with no item can't move stock
-    if (line.qty2 === 0) continue;
-    await recordMovement(
-      {
-        itemId: line.item_id,
-        out: line.qty2,
-        refType: "dr",
-        refId: id,
-        refNo: existing.dr_no,
-        date: existing.dr_date,
-        name: "Delivery Receipt"
-      },
-      exec
-    );
-  }
+  // The OUT movements and the posted flip are one transaction: a failure midway
+  // commits nothing, so a retry can't double-release stock.
+  return db.transaction(async (exec) => {
+    for (const line of existing.lines) {
+      if (!line.item_id) continue; // a line with no item can't move stock
+      if (line.qty2 === 0) continue;
+      await recordMovement(
+        {
+          itemId: line.item_id,
+          out: line.qty2,
+          refType: "dr",
+          refId: id,
+          refNo: existing.dr_no,
+          date: existing.dr_date,
+          name: "Delivery Receipt"
+        },
+        exec
+      );
+    }
 
-  const updated = (await exec(
-    `update dr set posted = true, updated_at = now()
-      where id = $1 returning ${HEADER_COLUMNS}`,
-    [id]
-  )) as DRHeader[];
-  return hydrate(updated[0] as DRHeader, exec);
+    const updated = (await exec(
+      `update dr set posted = true, updated_at = now()
+        where id = $1 returning ${HEADER_COLUMNS}`,
+      [id]
+    )) as DRHeader[];
+    return hydrate(updated[0] as DRHeader, exec);
+  });
 }
 
 // Cancel (void) a DR. If it was posted, reverse its stock by recording an
 // offsetting inventory IN movement per line of qty2 (pieces), then clear the posted
 // flag and set cancelled. An unposted DR is simply marked cancelled (no movements).
 // Idempotent: an already-cancelled DR is returned unchanged.
-export async function cancelDR(
-  id: string,
-  exec: Executor = defaultExecutor
-): Promise<DR> {
-  const existing = await getDR(id, exec);
+export async function cancelDR(id: string, db: Db = appDb): Promise<DR> {
+  const existing = await getDR(id, db.query);
   if (!existing) throw new Error(`DR ${id} not found`);
   if (existing.cancelled) return existing;
 
-  if (existing.posted) {
-    for (const line of existing.lines) {
-      if (!line.item_id) continue;
-      if (line.qty2 === 0) continue;
-      await recordMovement(
-        {
-          itemId: line.item_id,
-          in: line.qty2, // offsetting IN reverses the OUT
-          refType: "dr",
-          refId: id,
-          refNo: existing.dr_no,
-          date: existing.dr_date,
-          name: "Delivery Receipt (cancelled)"
-        },
-        exec
-      );
+  // The reversing movements and the flag changes are one transaction: a failure
+  // midway commits nothing, so a retry can't double-reverse stock.
+  return db.transaction(async (exec) => {
+    if (existing.posted) {
+      for (const line of existing.lines) {
+        if (!line.item_id) continue;
+        if (line.qty2 === 0) continue;
+        await recordMovement(
+          {
+            itemId: line.item_id,
+            in: line.qty2, // offsetting IN reverses the OUT
+            refType: "dr",
+            refId: id,
+            refNo: existing.dr_no,
+            date: existing.dr_date,
+            name: "Delivery Receipt (cancelled)"
+          },
+          exec
+        );
+      }
     }
-  }
 
-  const updated = (await exec(
-    `update dr set cancelled = true, posted = false, updated_at = now()
-      where id = $1 returning ${HEADER_COLUMNS}`,
-    [id]
-  )) as DRHeader[];
-  return hydrate(updated[0] as DRHeader, exec);
+    const updated = (await exec(
+      `update dr set cancelled = true, posted = false, updated_at = now()
+        where id = $1 returning ${HEADER_COLUMNS}`,
+      [id]
+    )) as DRHeader[];
+    return hydrate(updated[0] as DRHeader, exec);
+  });
 }

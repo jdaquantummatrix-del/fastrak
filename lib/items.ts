@@ -124,12 +124,15 @@ export async function updateItem(
   exec: Executor = defaultExecutor
 ): Promise<Item> {
   const code = required(input.code, "code");
+  // pic uses COALESCE so an edit that doesn't supply a pic ($15 = null) PRESERVES
+  // the existing image path. The item edit form has no pic field, so without this
+  // every save would null out the picture (data loss). A real path still updates.
   const rows = await exec(
     `update items set
        code = $2, description = $3, unit = $4, unit2 = $5, pack_size = $6,
        base_cost = $7, price = $8, retail = $9, category_id = $10, brand_id = $11,
-       supplier_id = $12, inactive = $13, critical = $14, pic = $15, type = $16,
-       updated_at = now()
+       supplier_id = $12, inactive = $13, critical = $14, pic = COALESCE($15, pic),
+       type = $16, updated_at = now()
       where id = $1
     returning ${COLUMNS}`,
     [id, ...values(input, code)]
