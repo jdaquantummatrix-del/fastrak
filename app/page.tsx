@@ -26,6 +26,18 @@ export default function Home() {
             <a href="/suppliers">Suppliers</a> — reference data (supplier.dbf)
           </li>
           <li>
+            <a href="/items">Items</a> — product catalog (item.dbf)
+          </li>
+          <li>
+            <a href="/inventory">Inventory</a> — stock ledger &amp; movements
+          </li>
+          <li>
+            <a href="/po">Purchase Orders</a> — PO headers &amp; detail (po/podet.dbf)
+          </li>
+          <li>
+            <a href="/dr">Delivery Receipts</a> — DR headers &amp; detail (dr/drdet.dbf)
+          </li>
+          <li>
             <a href="/settings">Settings</a> — company &amp; app defaults
           </li>
           <li>
@@ -33,8 +45,7 @@ export default function Home() {
           </li>
         </ul>
         <p className="muted" style={{ marginBottom: 0, fontSize: 13 }}>
-          More modules (items, delivery receipts, A/R, collections) come as we thicken the
-          slice.
+          More modules (A/R, collections, invoicing) come as we thicken the slice.
         </p>
       </div>
     </main>
