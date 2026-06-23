@@ -332,8 +332,60 @@ hr { border: none; border-top: 1px solid var(--line); margin: 20px 0; }
 .tour-skip:hover { color: var(--muted); }
 .tour-toggle { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); margin-top: 12px; cursor: pointer; }
 
+/* ── Motion: page entrance (kills the navigation whiplash) ───────────────── */
+@keyframes pageIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.content > main { animation: pageIn 0.26s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .content > main, .tour-pop, .tour-layer, .tour-spot, .tour-fab, .tour-menu { animation: none !important; }
+}
+
+/* ── Navigation loading (app/loading.tsx) ───────────────────────────────── */
+.route-bar { position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 1100; overflow: hidden; }
+.route-bar::before {
+  content: ""; position: absolute; inset: 0; width: 38%;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  animation: barSlide 1.05s ease-in-out infinite;
+}
+@keyframes barSlide { from { transform: translateX(-110%); } to { transform: translateX(360%); } }
+.skeleton {
+  background: linear-gradient(90deg, #edeff2 25%, #f7f8fa 37%, #edeff2 63%);
+  background-size: 400% 100%; animation: shimmer 1.3s ease infinite; border-radius: 6px;
+}
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
+
+/* ── Motion: tour entrances ─────────────────────────────────────────────── */
+@keyframes tourFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes tourPop { from { opacity: 0; transform: translateY(10px) scale(0.97); } to { opacity: 1; transform: none; } }
+@keyframes tourPopCenter { from { opacity: 0; transform: translate(-50%, -44%) scale(0.97); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
+@keyframes fabIn { from { opacity: 0; transform: scale(0.5); } to { opacity: 1; transform: none; } }
+@keyframes spotIn { from { box-shadow: 0 0 0 9999px rgba(15,23,42,0); outline-color: transparent; } to { box-shadow: 0 0 0 9999px rgba(15,23,42,0.55); outline-color: var(--accent); } }
+.tour-layer { animation: tourFade 0.22s ease both; }
+.tour-pop { animation: tourPop 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.tour-pop.center { animation: tourPopCenter 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.tour-spot { animation: spotIn 0.3s ease both; }
+.tour-fab { animation: fabIn 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) both; transition: transform 0.12s, background 0.12s; }
+.tour-fab:hover { transform: translateY(-2px); }
+
+/* ── Tour FAB menu ──────────────────────────────────────────────────────── */
+.tour-menu {
+  position: fixed; right: 20px; bottom: 70px; z-index: 1003; width: 236px;
+  background: #fff; border: 1px solid var(--line); border-radius: 12px;
+  box-shadow: 0 12px 36px rgba(16, 24, 40, 0.2); padding: 6px;
+  animation: tourPop 0.18s ease both;
+}
+.tour-menu button {
+  display: flex; width: 100%; align-items: center; gap: 10px; text-align: left;
+  background: none; border: none; padding: 9px 11px; border-radius: 8px;
+  font: inherit; font-size: 13px; color: var(--ink); cursor: pointer;
+}
+.tour-menu button:hover { background: var(--panel2); }
+.tour-menu button svg { width: 15px; height: 15px; opacity: 0.7; flex: none; }
+.tour-menu .sep { height: 1px; background: var(--line); margin: 4px 6px; }
+.tour-menu .tour-toggle { padding: 8px 11px; margin: 0; }
+
 /* print: drop the app chrome so document pages (DR / reports) print clean */
 @media print {
-  .sidebar, .tour-fab { display: none; }
+  .sidebar, .tour-fab, .tour-menu, .tour-layer, .tour-pop, .route-bar { display: none; }
   .content { margin-left: 0; padding: 0; max-width: none; }
+  .content > main { animation: none; }
 }
