@@ -21,8 +21,10 @@
 // in the grand-total Refresh formula, so we preserve it but do not apply it.
 // On POST (getpostar) fastrak inserts the GRAND TOTAL as the A/R amount and sets
 // LPOST; on the same post (getpost) it writes one inventory OUT per item of
-// sum(nqty2). A/R is a later slice, so postDR here only writes the inventory OUT
-// movements and flips the posted flag. cancelDR reverses those movements.
+// sum(nqty2). postDR reproduces BOTH: inside one transaction it writes the inventory
+// OUT movements, raises the A/R entry (lib/ar.ts createAR — amount = the grand total,
+// due date = DR date + terms days), then flips the posted flag. cancelDR reverses the
+// movements AND removes the A/R row in the same transaction.
 //
 // Money is numeric(14,2); Postgres returns it as an exact decimal *string*, never a
 // float, so there is no drift (ADR-0001 fidelity). Internally we compute in integer
@@ -30,6 +32,7 @@
 import { type Executor, defaultExecutor, newId, clean } from "./reference";
 import { type Db, appDb } from "./db";
 import { recordMovement } from "./inventory";
+import { createAR, removeARForDR } from "./ar";
 
 export type DRLine = {
   id: string;
@@ -390,18 +393,20 @@ export async function getDR(
 }
 
 // Post a DR: release stock by recording one inventory OUT movement per line of
-// qty2 (pieces) — matching fastrak's getpost (sum(nqty2) per item) — then mark the
-// header posted. Idempotent: an already-posted DR is returned unchanged so stock is
-// never double-released. Refuses a cancelled DR. (A/R is a later slice; the grand
-// total fastrak would post to A/R is available as the returned DR's `total`.)
+// qty2 (pieces) — matching fastrak's getpost (sum(nqty2) per item) — AND raise the
+// receivable (one ar row of the DR grand total, due DR date + terms days, matching
+// fastrak's getpostar), then mark the header posted. Idempotent: an already-posted DR
+// is returned unchanged so stock is never double-released and no duplicate A/R is
+// raised. Refuses a cancelled DR.
 export async function postDR(id: string, db: Db = appDb): Promise<DR> {
   const existing = await getDR(id, db.query);
   if (!existing) throw new Error(`DR ${id} not found`);
   if (existing.cancelled) throw new Error(`DR ${id} is cancelled and cannot be posted`);
   if (existing.posted) return existing;
 
-  // The OUT movements and the posted flip are one transaction: a failure midway
-  // commits nothing, so a retry can't double-release stock.
+  // The OUT movements, the A/R insert and the posted flip are one transaction: a
+  // failure midway commits nothing, so a retry can't double-release stock or raise a
+  // duplicate receivable.
   return db.transaction(async (exec) => {
     for (const line of existing.lines) {
       if (!line.item_id) continue; // a line with no item can't move stock
@@ -420,6 +425,22 @@ export async function postDR(id: string, db: Db = appDb): Promise<DR> {
       );
     }
 
+    // Raise the A/R: amount is the DR grand total (computeDRTotals.total, surfaced on
+    // the hydrated DR as `total`); due date = DR date + the DR's payment terms days.
+    await createAR(
+      {
+        customer_id: existing.customer_id,
+        dr_id: id,
+        dr_no: existing.dr_no,
+        po_no: existing.po_no,
+        ar_date: existing.dr_date,
+        terms_days: existing.terms_days,
+        amount: existing.total,
+        remarks: existing.remarks
+      },
+      exec
+    );
+
     const updated = (await exec(
       `update dr set posted = true, updated_at = now()
         where id = $1 returning ${HEADER_COLUMNS}`,
@@ -430,16 +451,18 @@ export async function postDR(id: string, db: Db = appDb): Promise<DR> {
 }
 
 // Cancel (void) a DR. If it was posted, reverse its stock by recording an
-// offsetting inventory IN movement per line of qty2 (pieces), then clear the posted
-// flag and set cancelled. An unposted DR is simply marked cancelled (no movements).
-// Idempotent: an already-cancelled DR is returned unchanged.
+// offsetting inventory IN movement per line of qty2 (pieces) AND remove the A/R entry
+// it raised, then clear the posted flag and set cancelled. An unposted DR is simply
+// marked cancelled (no movements, no A/R). Idempotent: an already-cancelled DR is
+// returned unchanged.
 export async function cancelDR(id: string, db: Db = appDb): Promise<DR> {
   const existing = await getDR(id, db.query);
   if (!existing) throw new Error(`DR ${id} not found`);
   if (existing.cancelled) return existing;
 
-  // The reversing movements and the flag changes are one transaction: a failure
-  // midway commits nothing, so a retry can't double-reverse stock.
+  // The reversing movements, the A/R removal and the flag changes are one
+  // transaction: a failure midway commits nothing, so a retry can't double-reverse
+  // stock or leave an orphaned receivable.
   return db.transaction(async (exec) => {
     if (existing.posted) {
       for (const line of existing.lines) {
@@ -458,6 +481,8 @@ export async function cancelDR(id: string, db: Db = appDb): Promise<DR> {
           exec
         );
       }
+      // Remove the receivable this DR raised on post (no-op if there is none).
+      await removeARForDR(id, exec);
     }
 
     const updated = (await exec(
