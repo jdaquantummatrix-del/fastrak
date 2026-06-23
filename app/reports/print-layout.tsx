@@ -84,6 +84,21 @@ const PRINT_CSS = `
 .print-doc .low { font-weight: 700; }
 .print-doc .empty { color: var(--paper-muted); font-style: italic; }
 
+@media screen and (max-width: 768px) {
+  .print-doc {
+    margin: 10px;
+    padding: 16px 14px;
+    max-width: none;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .print-doc .doc-head { flex-direction: column; gap: 8px; }
+  .print-doc .doc-title-block { text-align: left; }
+  .print-doc .doc-actions { flex-wrap: wrap; }
+  .print-doc table:not(.totals) { min-width: 560px; }
+  .print-doc .totals { width: 100%; margin-left: 0; }
+}
+
 @media print {
   body { background: #ffffff; }
   .print-doc {
