@@ -37,3 +37,6 @@ incoming/
 
 # Local dev database (PGlite)
 .pglite/
+
+# TS build info
+*.tsbuildinfo
