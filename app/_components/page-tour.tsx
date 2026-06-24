@@ -15,21 +15,19 @@
 
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { getFieldHint } from "@/lib/field-hints";
+import { introStepFor } from "@/lib/page-intros";
 
 type Step = { title: string; body: string; selector?: string };
 type RStep = Step & { el?: HTMLElement | null };
 
-// ── Page guides (overview + where each page fits in the everyday workflow) ──
+// ── Page guides (the extra spotlight steps that come AFTER the per-module intro).
+// The opening "what this page is for / where it fits in the flow" step is NOT
+// hardcoded here — it's built from the shared page-intro registry (lib/page-intros.ts,
+// issue #24 / S7) by introStep() below, so onboarding tells one consistent story
+// across modules. These entries are the page-specific spotlights layered on top.
 const GUIDES: Record<string, Step[]> = {
   "/": [
-    {
-      title: "Welcome to fastrak 👋",
-      body: "Your distribution business, online. Here's a 30-second tour of how it all fits together."
-    },
-    {
-      title: "The everyday flow",
-      body: "Set up Customers & Items once. Then for each sale: create a Delivery Receipt → Post it (that updates stock and what the customer owes) → record a Collection when they pay. Returns and Purchase Orders cover the rest."
-    },
     {
       title: "Everything's in the sidebar",
       body: "Grouped by Sales, Inventory, Contacts, Reports and Setup. Click any section to open it.",
@@ -48,11 +46,6 @@ const GUIDES: Record<string, Step[]> = {
   ],
   "/dr": [
     {
-      title: "Delivery Receipts",
-      body: "A DR records a sale and the goods handed to a customer. Every sale starts here.",
-      selector: "h1"
-    },
-    {
       title: "Create one",
       body: "Choose the customer, then add item lines — each with quantity, unit and price.",
       selector: "a[href$='/new']"
@@ -69,11 +62,6 @@ const GUIDES: Record<string, Step[]> = {
   ],
   "/ar": [
     {
-      title: "Accounts Receivable",
-      body: "Everything customers owe you. You never add these by hand — they appear when you Post a Delivery Receipt.",
-      selector: "h1"
-    },
-    {
       title: "Balances & aging",
       body: "What each customer owes, and how overdue it is (current vs 30 / 60 / 90+ days late).",
       selector: "table"
@@ -84,11 +72,6 @@ const GUIDES: Record<string, Step[]> = {
     }
   ],
   "/collections": [
-    {
-      title: "Collections",
-      body: "Where you record customer payments against what they owe.",
-      selector: "h1"
-    },
     {
       title: "Record a payment",
       body: "Pick the customer, see their open receivables, and apply the payment across them.",
@@ -101,21 +84,11 @@ const GUIDES: Record<string, Step[]> = {
   ],
   "/returns": [
     {
-      title: "Returns",
-      body: "Record goods a customer sends back.",
-      selector: "h1"
-    },
-    {
       title: "Resalable vs not",
       body: "Tick the lines that are still resalable — those go back into stock — and the customer's A/R is credited for the return's value."
     }
   ],
   "/items": [
-    {
-      title: "Items",
-      body: "Your product catalog — codes, units, and prices (cost, selling, retail).",
-      selector: "h1"
-    },
     {
       title: "Add a product",
       body: "Create an item here and tag its category, brand and supplier.",
@@ -128,21 +101,11 @@ const GUIDES: Record<string, Step[]> = {
   ],
   "/inventory": [
     {
-      title: "Stock",
-      body: "Live stock per item, plus every movement in and out.",
-      selector: "h1"
-    },
-    {
       title: "It stays honest",
       body: "Stock rises when you Receive a Purchase Order and falls when you Post a Delivery Receipt — so it always matches reality."
     }
   ],
   "/po": [
-    {
-      title: "Purchase Orders",
-      body: "How you buy stock from suppliers.",
-      selector: "h1"
-    },
     {
       title: "Raise an order",
       body: "Pick a supplier and add the items and quantities you're ordering, with costs.",
@@ -156,11 +119,6 @@ const GUIDES: Record<string, Step[]> = {
   ],
   "/customers": [
     {
-      title: "Customers",
-      body: "Everyone you sell to.",
-      selector: "h1"
-    },
-    {
       title: "Add a customer",
       body: "Capture name, payment terms, address and TIN — the same fields fastrak uses.",
       selector: "a[href$='/new']"
@@ -172,32 +130,17 @@ const GUIDES: Record<string, Step[]> = {
   ],
   "/suppliers": [
     {
-      title: "Suppliers",
-      body: "Everyone you buy from.",
-      selector: "h1"
-    },
-    {
       title: "Why add them",
       body: "Suppliers let you raise Purchase Orders and receive stock against them."
     }
   ],
   "/reports": [
     {
-      title: "Reports",
-      body: "Printable statements and documents — A/R statements and stock reports.",
-      selector: "h1"
-    },
-    {
       title: "Save as PDF",
       body: "Open one and use your browser's Print (Ctrl/Cmd-P). The sidebar is hidden automatically for a clean page."
     }
   ],
   "/settings": [
-    {
-      title: "Settings",
-      body: "Your company details and app defaults.",
-      selector: "h1"
-    },
     {
       title: "These print on documents",
       body: "Company name, address and the like appear on Delivery Receipts and reports — keep them accurate."
@@ -217,7 +160,22 @@ const DEFAULT: Step[] = [
   }
 ];
 
-// ── On-demand form help: smart hints by field label ─────────────────────────
+// The full page-guide for a section: the registry-built intro first (from
+// lib/page-intros.ts, so onboarding copy lives in ONE place), then the
+// page-specific spotlight steps from GUIDES. Reference lists with no registered
+// intro fall back to DEFAULT's own opener.
+function buildGuideSteps(key: string): Step[] {
+  const intro = introStepFor(key);
+  const rest = GUIDES[key] ?? DEFAULT;
+  return intro ? [intro, ...rest] : rest;
+}
+
+// ── On-demand form help ──────────────────────────────────────────────────────
+// Field guidance comes FIRST from the shared S6 hint registry (lib/field-hints.ts),
+// looked up by the input's `name` — so the walk-me-through-this-form tour and the
+// inline hints under each field tell the exact same thing (issue #24 / S7). The
+// label-regex table below is only a fallback for inputs not in the registry, so
+// the tour still says something sensible on any form, registered or not.
 const FIELD_HINTS: [RegExp, string][] = [
   [/\bname\b/i, "The name as it should appear on documents."],
   [/term/i, "Payment terms in days — e.g. 30 means due 30 days after the receipt."],
@@ -241,6 +199,26 @@ function hintFor(label: string): string {
   return "Fill this in.";
 }
 
+// The body text for one field's tour step. Prefer the S6 registry entry (by the
+// input's `name`), including its worked example; fall back to the label-regex.
+// ADR-0006: hints describe what a field MEANS — at Save everything is lenient, so
+// even a `required` input only gets a gentle "needed before you can Post" nudge.
+function fieldBody(name: string, label: string, required: boolean): string {
+  const reg = name ? getFieldHint(name, formContextForPath()) : null;
+  let body = reg?.hint ?? hintFor(label);
+  if (reg?.example) body += ` For example: ${reg.example}.`;
+  body += required ? " You'll need this before you can Post." : " (Optional.)";
+  return body;
+}
+
+// Map the current section to the form-context used by the S6 registry so a
+// document-specific override (e.g. a DR vs PO date) wins where one is registered.
+function formContextForPath(): string | undefined {
+  if (typeof window === "undefined") return undefined;
+  const seg = window.location.pathname.split("/")[1];
+  return seg || undefined;
+}
+
 function buildFormSteps(): RStep[] {
   if (typeof document === "undefined") return [];
   const labels = Array.from(
@@ -256,10 +234,11 @@ function buildFormSteps(): RStep[] {
     const labelEl = lab.querySelector(".field-label, span") ?? lab;
     const text = (labelEl.textContent || "").replace(/\s+/g, " ").replace(/\*+$/, "").trim();
     if (!text) continue;
+    const name = input.getAttribute("name") || "";
     const required = input.hasAttribute("required");
     out.push({
       title: text,
-      body: hintFor(text) + (required ? " This field is required." : " (Optional.)"),
+      body: fieldBody(name, text, required),
       el: input
     });
   }
@@ -325,7 +304,7 @@ export default function PageTour() {
 
   const startPage = useCallback(() => {
     setMode("page");
-    setSteps((GUIDES[key] ?? DEFAULT).map((s) => ({ ...s })));
+    setSteps(buildGuideSteps(key).map((s) => ({ ...s })));
     setStep(0);
     setMenu(false);
     setActive(true);
