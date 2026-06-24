@@ -9,6 +9,7 @@ import { createDRAction } from "../actions";
 import { Field, FormActions, FormCard } from "../../reference-ui";
 import { SelectField, DateField, type Option } from "../../inventory/movement-ui";
 import { DRLineEditor, type DRItemOption } from "../dr-lines";
+import { DraftForm } from "../../_components/draft-form";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +38,7 @@ export default async function NewDRPage() {
       <h1>New delivery receipt</h1>
 
       <FormCard>
-        <form action={createDRAction}>
+        <DraftForm draftKey="dr:new" action={createDRAction}>
           <Field label="DR number" name="dr_no" maxLength={25} autoFocus />
           <DateField label="Date" name="dr_date" />
           <SelectField
@@ -54,7 +55,7 @@ export default async function NewDRPage() {
           <Field label="Remarks" name="remarks" maxLength={150} />
           <DRLineEditor items={itemOptions} />
           <FormActions submitLabel="Create delivery receipt" cancelHref="/dr" />
-        </form>
+        </DraftForm>
       </FormCard>
     </main>
   );

@@ -12,6 +12,7 @@ import { updateDRAction } from "../../actions";
 import { Field, FormActions, FormCard } from "../../../reference-ui";
 import { SelectField, DateField, type Option } from "../../../inventory/movement-ui";
 import { DRLineEditor, type DRItemOption, type DRLineInitial } from "../../dr-lines";
+import { DraftForm } from "../../../_components/draft-form";
 
 export const dynamic = "force-dynamic";
 
@@ -62,7 +63,7 @@ export default async function EditDRPage({
       <h1>Edit delivery receipt</h1>
 
       <FormCard>
-        <form action={action}>
+        <DraftForm draftKey={`dr:${dr.id}`} action={action}>
           <Field label="DR number" name="dr_no" maxLength={25} defaultValue={dr.dr_no} autoFocus />
           <DateField label="Date" name="dr_date" defaultValue={dr.dr_date} />
           <SelectField
@@ -80,7 +81,7 @@ export default async function EditDRPage({
           <Field label="Remarks" name="remarks" maxLength={150} defaultValue={dr.remarks} />
           <DRLineEditor items={itemOptions} initial={initial} />
           <FormActions submitLabel="Save changes" cancelHref={`/dr/${dr.id}`} />
-        </form>
+        </DraftForm>
       </FormCard>
     </main>
   );

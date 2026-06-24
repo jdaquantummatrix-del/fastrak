@@ -11,6 +11,7 @@ import { createReturnAction } from "../actions";
 import { Field, FormActions, FormCard } from "../../reference-ui";
 import { SelectField, DateField, type Option } from "../../inventory/movement-ui";
 import { ReturnLineEditor, type ReturnItemOption } from "../return-lines";
+import { DraftForm } from "../../_components/draft-form";
 
 export const dynamic = "force-dynamic";
 
@@ -45,7 +46,7 @@ export default async function NewReturnPage() {
       <h1>New return</h1>
 
       <FormCard>
-        <form action={createReturnAction}>
+        <DraftForm draftKey="return:new" action={createReturnAction}>
           <DateField label="Date" name="return_date" />
           <SelectField
             label="Customer"
@@ -62,7 +63,7 @@ export default async function NewReturnPage() {
           <Field label="Remarks" name="remarks" maxLength={150} />
           <ReturnLineEditor items={itemOptions} />
           <FormActions submitLabel="Create return" cancelHref="/returns" />
-        </form>
+        </DraftForm>
       </FormCard>
     </main>
   );

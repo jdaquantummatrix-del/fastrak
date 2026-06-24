@@ -8,6 +8,7 @@ import { createPOAction } from "../actions";
 import { Field, FormActions, FormCard } from "../../reference-ui";
 import { SelectField, DateField, type Option } from "../../inventory/movement-ui";
 import { POLineEditor, type ItemOption } from "../po-lines";
+import { DraftForm } from "../../_components/draft-form";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +34,7 @@ export default async function NewPOPage() {
       <h1>New purchase order</h1>
 
       <FormCard>
-        <form action={createPOAction}>
+        <DraftForm draftKey="po:new" action={createPOAction}>
           <Field label="PO number" name="po_no" maxLength={25} autoFocus />
           <DateField label="Date" name="po_date" />
           <SelectField
@@ -45,7 +46,7 @@ export default async function NewPOPage() {
           <Field label="Remarks" name="remarks" maxLength={150} />
           <POLineEditor items={itemOptions} />
           <FormActions submitLabel="Create purchase order" cancelHref="/po" />
-        </form>
+        </DraftForm>
       </FormCard>
     </main>
   );
