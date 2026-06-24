@@ -3,8 +3,8 @@
 // Product tour & on-demand help.
 //
 //  • PAGE GUIDE  — a short, animated spotlight walkthrough of what a page is for and
-//    where it sits in the workflow. Auto-shows once per browser on first visit; the
-//    "?" button replays it; a toggle stops auto-showing.
+//    where it sits in the workflow. Shown ONLY on demand, when the user clicks the
+//    "?" button (never auto-shown).
 //  • FORM HELP   — field-by-field guidance, shown ONLY when asked (the "?" menu →
 //    "How to fill this form"). Built live from the form's own labels, so it works on
 //    every form without per-page markup.
@@ -14,7 +14,7 @@
 // record so it follows them across devices.
 
 import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import { getFieldHint } from "@/lib/field-hints";
 import { introStepFor } from "@/lib/page-intros";
 
@@ -40,7 +40,7 @@ const GUIDES: Record<string, Step[]> = {
     },
     {
       title: "Help is always here",
-      body: "Tap the ? button any time to replay a page's guide or get field-by-field help on a form — and switch off auto-tips whenever you like.",
+      body: "Tap the ? button any time to get a guide for the page you're on, or field-by-field help on a form.",
       selector: ".tour-fab"
     }
   ],
@@ -272,7 +272,6 @@ function Ico({ name }: { name: string }) {
   );
 }
 
-const ENABLED_KEY = "fastrak_tour_enabled";
 const SEEN_KEY = "fastrak_tour_seen";
 function sectionKey(path: string): string {
   if (path === "/") return "/";
@@ -291,14 +290,12 @@ export default function PageTour() {
   const key = sectionKey(pathname);
 
   const [mounted, setMounted] = useState(false);
-  const [enabled, setEnabled] = useState(true);
   const [active, setActive] = useState(false);
   const [mode, setMode] = useState<"page" | "form">("page");
   const [steps, setSteps] = useState<RStep[]>([]);
   const [step, setStep] = useState(0);
   const [rect, setRect] = useState<DOMRect | null>(null);
   const [menu, setMenu] = useState(false);
-  const timer = useRef<number | undefined>(undefined);
 
   useEffect(() => setMounted(true), []);
 
@@ -320,21 +317,12 @@ export default function PageTour() {
     setActive(true);
   }, []);
 
-  // Auto-start the PAGE guide on a new section — after a beat, so the page has
-  // settled in (its own fade-in finishes), which makes the tour feel like it leads in.
+  // The page guide is NEVER auto-shown — it opens only when the user clicks the
+  // "?" button. Just close any open guide/menu when the section changes.
   useEffect(() => {
-    if (pathname === "/login") return;
-    const en = localStorage.getItem(ENABLED_KEY);
-    const on = en === null ? true : en === "1";
-    setEnabled(on);
     setActive(false);
     setMenu(false);
-    if (on && !readSeen().includes(key)) {
-      window.clearTimeout(timer.current);
-      timer.current = window.setTimeout(() => startPage(), 380);
-      return () => window.clearTimeout(timer.current);
-    }
-  }, [key, pathname, startPage]);
+  }, [key, pathname]);
 
   const reposition = useCallback(() => {
     const cur = steps[step];
@@ -373,11 +361,6 @@ export default function PageTour() {
     setActive(false);
     setRect(null);
   }, [mode, key]);
-
-  const setEnabledPersist = (v: boolean) => {
-    setEnabled(v);
-    localStorage.setItem(ENABLED_KEY, v ? "1" : "0");
-  };
 
   if (!mounted || pathname === "/login") return null;
 
@@ -420,16 +403,6 @@ export default function PageTour() {
               <Ico name="form" /> How to fill this form
             </button>
           ) : null}
-          <div className="sep" />
-          <label className="tour-toggle">
-            <input
-              type="checkbox"
-              checked={enabled}
-              onChange={(e) => setEnabledPersist(e.target.checked)}
-              style={{ width: "auto" }}
-            />
-            Auto-show tips on new pages
-          </label>
         </div>
       ) : null}
 
