@@ -2,7 +2,7 @@
 // button that posts the order into stock (one inventory IN movement per line).
 // Once received the button is replaced by a status badge. Server component.
 import { notFound } from "next/navigation";
-import { getPO } from "@/lib/po";
+import { getPO, validatePOForReceive } from "@/lib/po";
 import { getSupplier } from "@/lib/suppliers";
 import { listItems } from "@/lib/items";
 import { receivePOAction } from "../actions";
@@ -40,6 +40,10 @@ export default async function POPage({
 
   const receive = receivePOAction.bind(null, po.id);
 
+  // An unreceived PO is a Draft (ADR-0006) — surface what still blocks Receive so
+  // the user knows before clicking.
+  const receiveBlockers = !po.received ? validatePOForReceive(po) : [];
+
   return (
     <main>
       <div className="crumb">
@@ -60,13 +64,36 @@ export default async function POPage({
         {po.received ? (
           <span className="count">received into stock</span>
         ) : (
-          <form action={receive}>
-            <button type="submit" style={receiveButtonStyle}>
-              Receive into stock
-            </button>
-          </form>
+          <>
+            <span style={{ color: "var(--amber)" }}>Draft</span>
+            <form action={receive}>
+              <button
+                type="submit"
+                style={receiveButtonStyle}
+                disabled={receiveBlockers.length > 0}
+              >
+                Receive into stock
+              </button>
+            </form>
+          </>
         )}
       </div>
+
+      {receiveBlockers.length > 0 ? (
+        <div
+          className="card"
+          style={{ padding: "12px 16px", borderColor: "var(--amber)" }}
+        >
+          <strong style={{ color: "var(--amber)" }}>
+            This Draft can’t be received yet.
+          </strong>
+          <ul className="muted" style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+            {receiveBlockers.map((p) => (
+              <li key={p}>{p}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       {po.remarks ? (
         <p className="muted" style={{ marginTop: 4 }}>

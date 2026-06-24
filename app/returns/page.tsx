@@ -72,12 +72,14 @@ export default async function ReturnsPage() {
                           : "—"}
                       </td>
                       <td>
+                        {/* An unposted return is a Draft (ADR-0006): editable,
+                            possibly incomplete, with no effect on stock/A.R. */}
                         <span
                           style={{
-                            color: ret.posted ? "var(--green)" : "var(--muted)"
+                            color: ret.posted ? "var(--green)" : "var(--amber)"
                           }}
                         >
-                          {ret.posted ? "posted" : "open"}
+                          {ret.posted ? "posted" : "Draft"}
                         </span>
                       </td>
                       <td>

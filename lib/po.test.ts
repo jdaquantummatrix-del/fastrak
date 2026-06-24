@@ -1,6 +1,13 @@
 import { test, expect } from "vitest";
 import { createTestDb, asDb } from "./test-db";
-import { createPO, listPOs, getPO, receivePO } from "./po";
+import {
+  createPO,
+  listPOs,
+  getPO,
+  receivePO,
+  poStatus,
+  validatePOForReceive
+} from "./po";
 import { createItem } from "./items";
 import { createSupplier } from "./suppliers";
 import { currentStock, listMovements } from "./inventory";
@@ -119,6 +126,7 @@ test("receivePO adds an inventory IN movement per line, increasing item stock", 
   const db = await createTestDb();
   const q = executor(db);
   const d = asDb(db);
+  const supplier = await createSupplier({ name: "Stock Supplier" }, q);
   const widget = await createItem({ code: "WIDGET" }, q);
   const gadget = await createItem({ code: "GADGET" }, q);
 
@@ -129,6 +137,7 @@ test("receivePO adds an inventory IN movement per line, increasing item stock", 
     {
       po_no: "RCV-1",
       po_date: "2024-03-10",
+      supplier_id: supplier.id,
       lines: [
         { item_id: widget.id, qty: 100, base_cost: "1.00" },
         { item_id: gadget.id, qty: 40, base_cost: "2.00" }
@@ -158,10 +167,15 @@ test("receivePO is idempotent — receiving twice does not double the stock", as
   const db = await createTestDb();
   const q = executor(db);
   const d = asDb(db);
+  const supplier = await createSupplier({ name: "Idem Supplier" }, q);
   const item = await createItem({ code: "ONCE" }, q);
 
   const po = await createPO(
-    { po_no: "IDEM", lines: [{ item_id: item.id, qty: 25, base_cost: "1.00" }] },
+    {
+      po_no: "IDEM",
+      supplier_id: supplier.id,
+      lines: [{ item_id: item.id, qty: 25, base_cost: "1.00" }]
+    },
     d
   );
 
@@ -287,6 +301,7 @@ test("receivePO rolls back all movements when posting fails partway, and a retry
   const db = await createTestDb();
   const q = executor(db);
   const d = asDb(db);
+  const supplier = await createSupplier({ name: "Fail Supplier" }, q);
   const widget = await createItem({ code: "WIDGET" }, q);
   const gadget = await createItem({ code: "GADGET" }, q);
 
@@ -294,6 +309,7 @@ test("receivePO rolls back all movements when posting fails partway, and a retry
     {
       po_no: "RCV-FAIL",
       po_date: "2024-03-10",
+      supplier_id: supplier.id,
       lines: [
         { item_id: widget.id, qty: 100, base_cost: "1.00" },
         { item_id: gadget.id, qty: 40, base_cost: "2.00" }
@@ -323,5 +339,132 @@ test("receivePO rolls back all movements when posting fails partway, and a retry
   await receivePO(po.id, d);
   expect(await currentStock(widget.id, q)).toBe(100);
   expect(await currentStock(gadget.id, q)).toBe(40);
+  await db.close();
+});
+
+// ---------------------------------------------------------------------------
+// Drafts (ADR-0006): Save is lenient, Receive (the PO's Post) is the strict gate.
+// An incomplete PO persists as an unreceived Draft; receivePO validates and names
+// what is missing.
+// ---------------------------------------------------------------------------
+
+test("createPO saves an incomplete PO leniently as an unreceived Draft", async () => {
+  const db = await createTestDb();
+  const q = executor(db);
+  const d = asDb(db);
+
+  // No supplier, no lines — incomplete, but Save must not enforce business rules.
+  const po = await createPO({ po_no: "DRAFT-1" }, d);
+  expect(po.id).toHaveLength(10);
+  expect(po.received).toBe(false);
+  expect(po.supplier_id).toBeNull();
+  expect(po.lines).toHaveLength(0);
+
+  // It is persisted and re-readable as a draft.
+  const reread = await getPO(po.id, q);
+  expect(reread?.po_no).toBe("DRAFT-1");
+  await db.close();
+});
+
+test("poStatus reports draft / received", async () => {
+  const db = await createTestDb();
+  const q = executor(db);
+  const d = asDb(db);
+  const supplier = await createSupplier({ name: "S" }, q);
+  const item = await createItem({ code: "PS" }, q);
+
+  const draft = await createPO({ po_no: "ST-1" }, d);
+  expect(poStatus(draft)).toBe("draft");
+
+  const complete = await createPO(
+    {
+      po_no: "ST-2",
+      supplier_id: supplier.id,
+      lines: [{ item_id: item.id, qty: 1, base_cost: "1.00" }]
+    },
+    d
+  );
+  expect(poStatus(complete)).toBe("draft"); // not yet received -> still a draft
+  const received = await receivePO(complete.id, d);
+  expect(poStatus(received)).toBe("received");
+  await db.close();
+});
+
+test("validatePOForReceive names every missing piece on an empty draft", async () => {
+  const db = await createTestDb();
+  const d = asDb(db);
+  const po = await createPO({ po_no: "EMPTY-V" }, d);
+  const problems = validatePOForReceive(po);
+  expect(problems.join(" ").toLowerCase()).toContain("supplier");
+  expect(problems.join(" ").toLowerCase()).toContain("line");
+  await db.close();
+});
+
+test("receivePO rejects an incomplete draft with no supplier", async () => {
+  const db = await createTestDb();
+  const q = executor(db);
+  const d = asDb(db);
+  const item = await createItem({ code: "NS" }, q);
+  const po = await createPO(
+    { po_no: "NO-SUPP", lines: [{ item_id: item.id, qty: 5, base_cost: "1.00" }] },
+    d
+  );
+  await expect(receivePO(po.id, d)).rejects.toThrow(/supplier/i);
+  // it stays an unreceived draft, no stock moved
+  const reread = await getPO(po.id, q);
+  expect(reread?.received).toBe(false);
+  expect(await currentStock(item.id, q)).toBe(0);
+  await db.close();
+});
+
+test("receivePO rejects a draft with no valid line", async () => {
+  const db = await createTestDb();
+  const q = executor(db);
+  const d = asDb(db);
+  const supplier = await createSupplier({ name: "S" }, q);
+  const po = await createPO({ po_no: "NO-LINE", supplier_id: supplier.id }, d);
+  await expect(receivePO(po.id, d)).rejects.toThrow(/line/i);
+  await db.close();
+});
+
+test("receivePO rejects a draft whose only line has a non-positive quantity", async () => {
+  const db = await createTestDb();
+  const q = executor(db);
+  const d = asDb(db);
+  const supplier = await createSupplier({ name: "S" }, q);
+  const item = await createItem({ code: "ZQ" }, q);
+  const po = await createPO(
+    {
+      po_no: "ZERO-QTY",
+      supplier_id: supplier.id,
+      lines: [{ item_id: item.id, qty: 0, base_cost: "1.00" }]
+    },
+    d
+  );
+  await expect(receivePO(po.id, d)).rejects.toThrow(/line/i);
+  await db.close();
+});
+
+test("receivePO receives stock when the draft is complete (effects unchanged)", async () => {
+  const db = await createTestDb();
+  const q = executor(db);
+  const d = asDb(db);
+  const supplier = await createSupplier({ name: "Complete Supplier" }, q);
+  const item = await createItem({ code: "OK" }, q);
+
+  const po = await createPO(
+    {
+      po_no: "COMPLETE",
+      po_date: "2024-05-01",
+      supplier_id: supplier.id,
+      lines: [{ item_id: item.id, qty: 20, base_cost: "10.00" }]
+    },
+    d
+  );
+  expect(validatePOForReceive(po)).toEqual([]);
+
+  const received = await receivePO(po.id, d);
+  expect(received.received).toBe(true);
+  expect(await currentStock(item.id, q)).toBe(20);
   await db.close();
 });

@@ -165,6 +165,54 @@ export function computeReturnValue(lines: ReturnLineInput[]): string {
   return fixed2(value);
 }
 
+// ── drafts: lenient Save, validate at Post (ADR-0006) ────────────────────────
+
+// A return's lifecycle state. Per CONTEXT.md/ADR-0006 a return that has been
+// started but not yet posted is a **Draft** — editable, possibly incomplete, with
+// no effect on stock or A/R. Posting makes it Posted.
+export type ReturnStatus = "draft" | "posted";
+
+export function returnStatus(ret: { posted: boolean }): ReturnStatus {
+  return ret.posted ? "posted" : "draft";
+}
+
+// The strict gate (ADR-0006): postReturn — not Save — enforces the business rules.
+// Given a hydrated return, return a list of human-readable problems that must be
+// fixed before it can be posted. An empty list means the return is complete and
+// safe to post. Save deliberately never calls this, so an incomplete draft persists
+// harmlessly.
+//
+// Rules (mirroring fastrak's posting preconditions):
+//   • a customer is set,
+//   • at least one valid line (an item picked with a positive quantity),
+//   • sane quantities and amounts (no negative qty, price, or return value).
+export function validateReturnForPost(ret: Return): string[] {
+  const problems: string[] = [];
+
+  if (!ret.customer_id) problems.push("a customer must be selected");
+
+  const validLines = ret.lines.filter(
+    (l) => l.item_id != null && count(l.qty) > 0
+  );
+  if (validLines.length === 0) {
+    problems.push("at least one line with an item and a positive quantity is required");
+  }
+
+  // Sane quantities and amounts on each line that carries an item.
+  for (const l of ret.lines) {
+    if (l.item_id == null) continue;
+    if (count(l.qty) < 0)
+      problems.push(`line for item ${l.item_id} has a negative quantity`);
+    if (num(l.price) < 0)
+      problems.push(`line for item ${l.item_id} has a negative price`);
+  }
+
+  // The credit the post raises against A/R must not be negative.
+  if (num(ret.value) < 0) problems.push("the return value is negative");
+
+  return problems;
+}
+
 // ── persistence ──────────────────────────────────────────────────────────────
 
 // A logical flag for storage -> true/false when given, null when blank (LGOOD is
@@ -297,6 +345,12 @@ export async function postReturn(id: string, db: Db = appDb): Promise<Return> {
     if (!locked[0]) throw new Error(`Return ${id} not found`);
     const existing = await hydrate(locked[0], exec);
     if (existing.posted) return existing;
+
+    // Post is the single strict gate (ADR-0006): refuse an incomplete draft with a
+    // clear error naming exactly what is missing, before touching stock or A/R.
+    const problems = validateReturnForPost(existing);
+    if (problems.length > 0)
+      throw new Error(`Return ${id} cannot be posted — ${problems.join("; ")}.`);
 
     for (const line of existing.lines) {
       if (line.good !== true) continue; // only resalable goods go back into stock

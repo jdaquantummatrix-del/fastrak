@@ -8,6 +8,8 @@ import {
   getReturn,
   postReturn,
   computeReturnValue,
+  returnStatus,
+  validateReturnForPost,
   type ReturnLineInput
 } from "./returns";
 import { createCustomer } from "./customers";
@@ -363,6 +365,149 @@ test("createReturn rolls back the header AND all lines when a later line fails",
   expect((headers[0] as { n: number }).n).toBe(0);
   const lines = await q("select count(*)::int as n from returndet");
   expect((lines[0] as { n: number }).n).toBe(0);
+  await db.close();
+});
+
+// ---------------------------------------------------------------------------
+// Drafts (ADR-0006): Save is lenient, Post is the strict gate. An incomplete
+// return persists as an unposted Draft; postReturn validates and names what is
+// missing.
+// ---------------------------------------------------------------------------
+
+test("createReturn saves an incomplete return leniently as an unposted Draft", async () => {
+  const db = await createTestDb();
+  const q = executor(db);
+  const d = asDb(db);
+
+  // No customer, no lines — incomplete, but Save must not enforce business rules.
+  const ret = await createReturn({ remarks: "DRAFT-1" }, d);
+  expect(ret.id).toHaveLength(10);
+  expect(ret.posted).toBe(false);
+  expect(ret.customer_id).toBeNull();
+  expect(ret.lines).toHaveLength(0);
+
+  // It is persisted and re-readable as a draft.
+  const reread = await getReturn(ret.id, q);
+  expect(reread?.remarks).toBe("DRAFT-1");
+  await db.close();
+});
+
+test("returnStatus reports draft / posted", async () => {
+  const db = await createTestDb();
+  const q = executor(db);
+  const d = asDb(db);
+  const cust = await createCustomer({ name: "Buyer" }, q);
+  const item = await createItem({ code: "RS" }, q);
+
+  const draft = await createReturn({ remarks: "ST-1" }, d);
+  expect(returnStatus(draft)).toBe("draft");
+
+  const complete = await createReturn(
+    {
+      customer_id: cust.id,
+      lines: [{ item_id: item.id, qty: 1, price: "1.00", good: true }]
+    },
+    d
+  );
+  expect(returnStatus(complete)).toBe("draft"); // not yet posted -> still a draft
+  const posted = await postReturn(complete.id, d);
+  expect(returnStatus(posted)).toBe("posted");
+  await db.close();
+});
+
+test("validateReturnForPost names every missing piece on an empty draft", async () => {
+  const db = await createTestDb();
+  const d = asDb(db);
+  const ret = await createReturn({ remarks: "EMPTY-V" }, d);
+  const problems = validateReturnForPost(ret);
+  expect(problems.join(" ").toLowerCase()).toContain("customer");
+  expect(problems.join(" ").toLowerCase()).toContain("line");
+  await db.close();
+});
+
+test("postReturn rejects an incomplete draft with no customer", async () => {
+  const db = await createTestDb();
+  const q = executor(db);
+  const d = asDb(db);
+  const item = await createItem({ code: "NC" }, q);
+  const ret = await createReturn(
+    { remarks: "NO-CUST", lines: [{ item_id: item.id, qty: 1, price: "1.00", good: true }] },
+    d
+  );
+  await expect(postReturn(ret.id, d)).rejects.toThrow(/customer/i);
+  // it stays an unposted draft, no stock moved
+  const reread = await getReturn(ret.id, q);
+  expect(reread?.posted).toBe(false);
+  expect(await currentStock(item.id, q)).toBe(0);
+  await db.close();
+});
+
+test("postReturn rejects a draft with no valid line", async () => {
+  const db = await createTestDb();
+  const q = executor(db);
+  const d = asDb(db);
+  const cust = await createCustomer({ name: "B" }, q);
+  const ret = await createReturn({ customer_id: cust.id, remarks: "NO-LINE" }, d);
+  await expect(postReturn(ret.id, d)).rejects.toThrow(/line/i);
+  await db.close();
+});
+
+test("postReturn rejects a draft whose only line has a non-positive quantity", async () => {
+  const db = await createTestDb();
+  const q = executor(db);
+  const d = asDb(db);
+  const cust = await createCustomer({ name: "B" }, q);
+  const item = await createItem({ code: "ZQ" }, q);
+  const ret = await createReturn(
+    {
+      customer_id: cust.id,
+      lines: [{ item_id: item.id, qty: 0, price: "1.00", good: true }]
+    },
+    d
+  );
+  await expect(postReturn(ret.id, d)).rejects.toThrow(/line/i);
+  await db.close();
+});
+
+test("postReturn rejects a negative price (sane-amount gate)", async () => {
+  const db = await createTestDb();
+  const q = executor(db);
+  const d = asDb(db);
+  const cust = await createCustomer({ name: "B" }, q);
+  const item = await createItem({ code: "NEG" }, q);
+  const ret = await createReturn(
+    {
+      customer_id: cust.id,
+      lines: [{ item_id: item.id, qty: 1, price: "-2.00", good: true }]
+    },
+    d
+  );
+  await expect(postReturn(ret.id, d)).rejects.toThrow(/price|amount|negative|value/i);
+  await db.close();
+});
+
+test("postReturn applies stock and A/R when the draft is complete (effects unchanged)", async () => {
+  const db = await createTestDb();
+  const q = executor(db);
+  const d = asDb(db);
+  const cust = await createCustomer({ name: "Complete Buyer" }, q);
+  const item = await createItem({ code: "OK" }, q);
+  await recordMovement({ itemId: item.id, in: 100 }, q);
+
+  const ret = await createReturn(
+    {
+      return_date: "2024-05-01",
+      customer_id: cust.id,
+      lines: [{ item_id: item.id, qty: 10, price: "5.00", good: true }]
+    },
+    d
+  );
+  expect(validateReturnForPost(ret)).toEqual([]);
+
+  const posted = await postReturn(ret.id, d);
+  expect(posted.posted).toBe(true);
+  expect(await currentStock(item.id, q)).toBe(110);
+  expect(await balanceForCustomer(cust.id, q)).toBe("-50.00");
   await db.close();
 });
 

@@ -4,7 +4,7 @@
 // IN) and raises an offsetting A/R credit of the return value; un-posting reverses
 // both. Server component.
 import { notFound } from "next/navigation";
-import { getReturn } from "@/lib/returns";
+import { getReturn, validateReturnForPost } from "@/lib/returns";
 import { getCustomer } from "@/lib/customers";
 import { getDR } from "@/lib/dr";
 import { listItems } from "@/lib/items";
@@ -62,9 +62,12 @@ export default async function ReturnDetailPage({
   const post = postReturnAction.bind(null, ret.id);
   const unpost = unpostReturnAction.bind(null, ret.id);
 
+  // An unposted return is a Draft (ADR-0006) — show it as such, and surface what
+  // still blocks Post so the user knows before clicking.
   const status = ret.posted
     ? { label: "posted (stock raised, A/R credited)", color: "var(--green)" }
-    : { label: "open", color: "var(--muted)" };
+    : { label: "Draft", color: "var(--amber)" };
+  const postBlockers = !ret.posted ? validateReturnForPost(ret) : [];
 
   return (
     <main>
@@ -87,7 +90,11 @@ export default async function ReturnDetailPage({
       <div className="badge-row">
         {!ret.posted ? (
           <form action={post}>
-            <button type="submit" style={postButtonStyle}>
+            <button
+              type="submit"
+              style={postButtonStyle}
+              disabled={postBlockers.length > 0}
+            >
               Post return
             </button>
           </form>
@@ -99,6 +106,22 @@ export default async function ReturnDetailPage({
           </form>
         )}
       </div>
+
+      {postBlockers.length > 0 ? (
+        <div
+          className="card"
+          style={{ padding: "12px 16px", borderColor: "var(--amber)" }}
+        >
+          <strong style={{ color: "var(--amber)" }}>
+            This Draft can’t be posted yet.
+          </strong>
+          <ul className="muted" style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+            {postBlockers.map((p) => (
+              <li key={p}>{p}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       {ret.remarks ? (
         <p className="muted" style={{ marginTop: 4 }}>

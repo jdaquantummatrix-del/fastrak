@@ -80,7 +80,9 @@ export default async function POPage() {
                         {po.received ? (
                           <span style={{ color: "var(--green)" }}>received</span>
                         ) : (
-                          <span className="muted">open</span>
+                          // An unreceived PO is a Draft (ADR-0006): editable,
+                          // possibly incomplete, with no effect on stock.
+                          <span style={{ color: "var(--amber)" }}>Draft</span>
                         )}
                       </td>
                       <td>

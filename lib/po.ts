@@ -99,6 +99,60 @@ function money(v: number | string | null | undefined): number | string | null {
   return v;
 }
 
+// A money/percentage value -> a Number for arithmetic. Accepts numbers and the
+// decimal strings Postgres returns; blank/null -> 0.
+function num(v: number | string | null | undefined): number {
+  if (v == null) return 0;
+  if (typeof v === "number") return v;
+  const t = v.trim();
+  return t === "" ? 0 : Number(t);
+}
+
+// ── drafts: lenient Save, validate at Post (ADR-0006) ────────────────────────
+
+// A PO's lifecycle state. Per CONTEXT.md/ADR-0006 a PO that has been started but
+// not yet received is a **Draft** — editable, possibly incomplete, with no effect
+// on stock. Receiving it (the PO's Post) makes it Received.
+export type POStatus = "draft" | "received";
+
+export function poStatus(po: { received: boolean }): POStatus {
+  return po.received ? "received" : "draft";
+}
+
+// The strict gate (ADR-0006): receivePO — not Save — enforces the business rules.
+// Given a hydrated PO, return a list of human-readable problems that must be fixed
+// before it can be received into stock. An empty list means the PO is complete and
+// safe to receive. Save deliberately never calls this, so an incomplete draft
+// persists harmlessly.
+//
+// Rules (mirroring fastrak's posting preconditions):
+//   • a supplier is set,
+//   • at least one valid line (an item picked with a positive quantity),
+//   • sane quantities and amounts (no negative qty or unit cost).
+export function validatePOForReceive(po: PO): string[] {
+  const problems: string[] = [];
+
+  if (!po.supplier_id) problems.push("a supplier must be selected");
+
+  const orderedLines = po.lines.filter(
+    (l) => l.item_id != null && count(l.qty) > 0
+  );
+  if (orderedLines.length === 0) {
+    problems.push("at least one line with an item and a positive quantity is required");
+  }
+
+  // Sane quantities and amounts on each line that carries an item.
+  for (const l of po.lines) {
+    if (l.item_id == null) continue;
+    if (count(l.qty) < 0)
+      problems.push(`line for item ${l.item_id} has a negative quantity`);
+    if (num(l.base_cost) < 0)
+      problems.push(`line for item ${l.item_id} has a negative unit cost`);
+  }
+
+  return problems;
+}
+
 async function insertLine(
   poId: string,
   line: POLineInput,
@@ -196,6 +250,12 @@ export async function receivePO(id: string, db: Db = appDb): Promise<PO> {
   const existing = await getPO(id, db.query);
   if (!existing) throw new Error(`PO ${id} not found`);
   if (existing.received) return existing;
+
+  // Receive is the single strict gate (ADR-0006): refuse an incomplete draft with a
+  // clear error naming exactly what is missing, before touching stock.
+  const problems = validatePOForReceive(existing);
+  if (problems.length > 0)
+    throw new Error(`PO ${id} cannot be received — ${problems.join("; ")}.`);
 
   // All movements AND the received flip happen in one transaction: if any step
   // fails, nothing commits, so a retry can't double-count stock (the previous
