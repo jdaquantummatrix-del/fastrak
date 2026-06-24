@@ -5,10 +5,12 @@ import { listCustomers, type Customer } from "@/lib/customers";
 
 export const dynamic = "force-dynamic";
 
+// A DR that has been saved but not yet posted is a Draft (ADR-0006): editable,
+// possibly incomplete, with no effect on stock/A.R. Show it with a clear Draft badge.
 function statusOf(dr: DRHeader): { label: string; color: string } {
   if (dr.cancelled) return { label: "cancelled", color: "#f0a3a3" };
   if (dr.posted) return { label: "posted", color: "var(--green)" };
-  return { label: "open", color: "var(--muted)" };
+  return { label: "Draft", color: "var(--amber)" };
 }
 
 export default async function DRPage() {

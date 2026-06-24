@@ -4,7 +4,7 @@
 // stock (one inventory OUT of qty2 per line) and freezes the document; cancelling
 // voids it and reverses any posted stock. Server component.
 import { notFound } from "next/navigation";
-import { getDR } from "@/lib/dr";
+import { getDR, validateDRForPost } from "@/lib/dr";
 import { getCustomer } from "@/lib/customers";
 import { listItems } from "@/lib/items";
 import { postDRAction, cancelDRAction } from "../actions";
@@ -60,11 +60,15 @@ export default async function DRDetailPage({
   const post = postDRAction.bind(null, dr.id);
   const cancel = cancelDRAction.bind(null, dr.id);
 
+  // An unposted, non-cancelled DR is a Draft (ADR-0006) — show it as such, and
+  // surface what still blocks Post so the user knows before clicking.
   const status = dr.cancelled
     ? { label: "cancelled", color: "#f0a3a3" }
     : dr.posted
       ? { label: "posted into stock", color: "var(--green)" }
-      : { label: "open", color: "var(--muted)" };
+      : { label: "Draft", color: "var(--amber)" };
+  const postBlockers =
+    !dr.posted && !dr.cancelled ? validateDRForPost(dr) : [];
 
   return (
     <main>
@@ -92,7 +96,11 @@ export default async function DRDetailPage({
               edit
             </a>
             <form action={post}>
-              <button type="submit" style={postButtonStyle}>
+              <button
+                type="submit"
+                style={postButtonStyle}
+                disabled={postBlockers.length > 0}
+              >
                 Post into stock
               </button>
             </form>
@@ -112,6 +120,22 @@ export default async function DRDetailPage({
           print (no price)
         </a>
       </div>
+
+      {postBlockers.length > 0 ? (
+        <div
+          className="card"
+          style={{ padding: "12px 16px", borderColor: "var(--amber)" }}
+        >
+          <strong style={{ color: "var(--amber)" }}>
+            This Draft can’t be posted yet.
+          </strong>
+          <ul className="muted" style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+            {postBlockers.map((p) => (
+              <li key={p}>{p}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       {dr.address ? (
         <p className="muted" style={{ marginTop: 4 }}>

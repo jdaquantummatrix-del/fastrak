@@ -36,6 +36,14 @@ with returns, discounts, and supporting reference data.
   source document (PO / DR / return / discrepancy).
 - **Purchase Order / PO** (`po` + `podet`) — orders placed to suppliers.
 
+### Document states
+
+- **Draft** — a sales/purchase document (DR, PO, Return) that has been started but not yet
+  **posted**: editable, possibly incomplete, and with **no effect** on stock, A/R, or money.
+- **Posted** — the commit point. Posting enforces the document's rules and applies its
+  financial/stock effects (creates A/R, moves inventory, etc.). A posted document is no
+  longer a draft.
+
 ### Supporting tables
 
 `company` (the business's own info), `bank`, `custdisc` (customer-specific discounts),

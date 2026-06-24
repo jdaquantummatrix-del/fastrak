@@ -218,6 +218,59 @@ export function computeDRTotals(
   };
 }
 
+// ── drafts: lenient Save, validate at Post (ADR-0006) ────────────────────────
+
+// A DR's lifecycle state. Per CONTEXT.md/ADR-0006 a DR that has been started but
+// not yet posted (and not cancelled) is a **Draft** — editable, possibly
+// incomplete, with no effect on stock, A/R, or money. Posting makes it Posted;
+// voiding makes it Cancelled.
+export type DRStatus = "draft" | "posted" | "cancelled";
+
+export function drStatus(dr: {
+  posted: boolean;
+  cancelled: boolean;
+}): DRStatus {
+  if (dr.cancelled) return "cancelled";
+  if (dr.posted) return "posted";
+  return "draft";
+}
+
+// The strict gate (ADR-0006): Post — not Save — enforces the business rules. Given
+// a hydrated DR, return a list of human-readable problems that must be fixed before
+// it can be posted. An empty list means the DR is complete and safe to post. Save
+// deliberately never calls this, so an incomplete draft persists harmlessly.
+//
+// Rules (mirroring fastrak's posting preconditions):
+//   • a customer is set,
+//   • at least one valid line (an item picked with a positive piece quantity),
+//   • sane quantities and amounts (no negative qty/qty2, price, or grand total).
+export function validateDRForPost(dr: DR): string[] {
+  const problems: string[] = [];
+
+  if (!dr.customer_id) problems.push("a customer must be selected");
+
+  const sellableLines = dr.lines.filter(
+    (l) => l.item_id != null && count(l.qty2) > 0
+  );
+  if (sellableLines.length === 0) {
+    problems.push("at least one line with an item and a positive quantity is required");
+  }
+
+  // Sane quantities and amounts on each line that carries an item.
+  for (const l of dr.lines) {
+    if (l.item_id == null) continue;
+    if (count(l.qty) < 0 || count(l.qty2) < 0)
+      problems.push(`line for item ${l.item_id} has a negative quantity`);
+    if (num(l.price) < 0)
+      problems.push(`line for item ${l.item_id} has a negative price`);
+  }
+
+  // The grand total the post raises as A/R must not be negative.
+  if (num(dr.total) < 0) problems.push("the grand total is negative");
+
+  return problems;
+}
+
 // ── persistence ─────────────────────────────────────────────────────────────
 
 async function insertLine(
@@ -414,6 +467,14 @@ export async function postDR(id: string, db: Db = appDb): Promise<DR> {
     if (existing.cancelled)
       throw new Error(`DR ${id} is cancelled and cannot be posted`);
     if (existing.posted) return existing;
+
+    // Post is the single strict gate (ADR-0006): refuse an incomplete draft with a
+    // clear error naming exactly what is missing, before touching stock or A/R.
+    const problems = validateDRForPost(existing);
+    if (problems.length > 0)
+      throw new Error(
+        `DR ${id} cannot be posted — ${problems.join("; ")}.`
+      );
 
     for (const line of existing.lines) {
       if (!line.item_id) continue; // a line with no item can't move stock

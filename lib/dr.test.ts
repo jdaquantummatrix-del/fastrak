@@ -10,6 +10,8 @@ import {
   postDR,
   cancelDR,
   computeDRTotals,
+  drStatus,
+  validateDRForPost,
   type DRLineInput
 } from "./dr";
 import { createCustomer } from "./customers";
@@ -224,6 +226,7 @@ test("postDR releases stock OUT per line using qty2 (pieces), marks posted", asy
   const db = await createTestDb();
   const q = executor(db);
   const d = asDb(db);
+  const cust = await createCustomer({ name: "Stock Buyer", terms_days: 30 }, q);
   const widget = await createItem({ code: "WIDGET" }, q);
   const gadget = await createItem({ code: "GADGET" }, q);
 
@@ -237,6 +240,7 @@ test("postDR releases stock OUT per line using qty2 (pieces), marks posted", asy
     {
       dr_no: "POST-1",
       dr_date: "2024-03-10",
+      customer_id: cust.id,
       lines: [
         { item_id: widget.id, qty: 5, qty2: 240, price: "20.00" },
         { item_id: gadget.id, qty: 2, qty2: 48, price: "8.50" }
@@ -264,12 +268,17 @@ test("postDR is idempotent — posting twice does not double the OUT", async () 
   const db = await createTestDb();
   const q = executor(db);
   const d = asDb(db);
+  const cust = await createCustomer({ name: "Idem Buyer", terms_days: 0 }, q);
   const item = await createItem({ code: "ONCE" }, q);
   const { recordMovement } = await import("./inventory");
   await recordMovement({ itemId: item.id, in: 100 }, q);
 
   const dr = await createDR(
-    { dr_no: "IDEM", lines: [{ item_id: item.id, qty: 1, qty2: 25, price: "1.00" }] },
+    {
+      dr_no: "IDEM",
+      customer_id: cust.id,
+      lines: [{ item_id: item.id, qty: 1, qty2: 25, price: "1.00" }]
+    },
     d
   );
   await postDR(dr.id, d);
@@ -283,12 +292,17 @@ test("cancelDR reverses a posted DR's stock and marks cancelled", async () => {
   const db = await createTestDb();
   const q = executor(db);
   const d = asDb(db);
+  const cust = await createCustomer({ name: "Rev Buyer", terms_days: 0 }, q);
   const item = await createItem({ code: "REV" }, q);
   const { recordMovement } = await import("./inventory");
   await recordMovement({ itemId: item.id, in: 100 }, q);
 
   const dr = await createDR(
-    { dr_no: "CAN", lines: [{ item_id: item.id, qty: 1, qty2: 30, price: "1.00" }] },
+    {
+      dr_no: "CAN",
+      customer_id: cust.id,
+      lines: [{ item_id: item.id, qty: 1, qty2: 30, price: "1.00" }]
+    },
     d
   );
   await postDR(dr.id, d);
@@ -393,6 +407,7 @@ test("postDR rolls back all OUT movements when posting fails partway, and a retr
   const db = await createTestDb();
   const q = executor(db);
   const d = asDb(db);
+  const cust = await createCustomer({ name: "Fail Buyer", terms_days: 0 }, q);
   const widget = await createItem({ code: "WIDGET" }, q);
   const gadget = await createItem({ code: "GADGET" }, q);
   const { recordMovement } = await import("./inventory");
@@ -403,6 +418,7 @@ test("postDR rolls back all OUT movements when posting fails partway, and a retr
     {
       dr_no: "POST-FAIL",
       dr_date: "2024-03-10",
+      customer_id: cust.id,
       lines: [
         { item_id: widget.id, qty: 5, qty2: 240, price: "20.00" },
         { item_id: gadget.id, qty: 2, qty2: 48, price: "8.50" }
@@ -433,6 +449,158 @@ test("postDR rolls back all OUT movements when posting fails partway, and a retr
   await postDR(dr.id, d);
   expect(await currentStock(widget.id, q)).toBe(760);
   expect(await currentStock(gadget.id, q)).toBe(952);
+  await db.close();
+});
+
+// ---------------------------------------------------------------------------
+// Drafts (ADR-0006): Save is lenient, Post is the strict gate. An incomplete DR
+// persists as an unposted Draft; postDR validates and names what is missing.
+// ---------------------------------------------------------------------------
+
+test("createDR saves an incomplete DR leniently as an unposted Draft", async () => {
+  const db = await createTestDb();
+  const q = executor(db);
+  const d = asDb(db);
+
+  // No customer, no lines — incomplete, but Save must not enforce business rules.
+  const dr = await createDR({ dr_no: "DRAFT-1" }, d);
+  expect(dr.id).toHaveLength(10);
+  expect(dr.posted).toBe(false);
+  expect(dr.cancelled).toBe(false);
+  expect(dr.customer_id).toBeNull();
+  expect(dr.lines).toHaveLength(0);
+
+  // It is persisted and re-readable as a draft.
+  const reread = await getDR(dr.id, q);
+  expect(reread?.dr_no).toBe("DRAFT-1");
+  await db.close();
+});
+
+test("drStatus reports draft / posted / cancelled", async () => {
+  const db = await createTestDb();
+  const q = executor(db);
+  const d = asDb(db);
+  const cust = await createCustomer({ name: "Buyer", terms_days: 30 }, q);
+  const item = await createItem({ code: "DS" }, q);
+
+  const draft = await createDR({ dr_no: "ST-1" }, d);
+  expect(drStatus(draft)).toBe("draft");
+
+  const complete = await createDR(
+    {
+      dr_no: "ST-2",
+      customer_id: cust.id,
+      lines: [{ item_id: item.id, qty: 1, qty2: 1, price: "1.00" }]
+    },
+    d
+  );
+  expect(drStatus(complete)).toBe("draft"); // not yet posted -> still a draft
+  const posted = await postDR(complete.id, d);
+  expect(drStatus(posted)).toBe("posted");
+
+  const cancelled = await cancelDR(draft.id, d);
+  expect(drStatus(cancelled)).toBe("cancelled");
+  await db.close();
+});
+
+test("validateDRForPost names every missing piece on an empty draft", async () => {
+  const db = await createTestDb();
+  const d = asDb(db);
+  const dr = await createDR({ dr_no: "EMPTY" }, d);
+  const problems = validateDRForPost(dr);
+  expect(problems.join(" ").toLowerCase()).toContain("customer");
+  expect(problems.join(" ").toLowerCase()).toContain("line");
+  await db.close();
+});
+
+test("postDR rejects an incomplete draft with no customer", async () => {
+  const db = await createTestDb();
+  const q = executor(db);
+  const d = asDb(db);
+  const item = await createItem({ code: "NC" }, q);
+  const dr = await createDR(
+    { dr_no: "NO-CUST", lines: [{ item_id: item.id, qty: 1, qty2: 5, price: "1.00" }] },
+    d
+  );
+  await expect(postDR(dr.id, d)).rejects.toThrow(/customer/i);
+  // it stays an unposted draft, no stock moved
+  const reread = await getDR(dr.id, q);
+  expect(reread?.posted).toBe(false);
+  await db.close();
+});
+
+test("postDR rejects a draft with no valid line", async () => {
+  const db = await createTestDb();
+  const q = executor(db);
+  const d = asDb(db);
+  const cust = await createCustomer({ name: "B", terms_days: 0 }, q);
+  const dr = await createDR({ dr_no: "NO-LINE", customer_id: cust.id }, d);
+  await expect(postDR(dr.id, d)).rejects.toThrow(/line/i);
+  await db.close();
+});
+
+test("postDR rejects a line with a non-positive quantity", async () => {
+  const db = await createTestDb();
+  const q = executor(db);
+  const d = asDb(db);
+  const cust = await createCustomer({ name: "B", terms_days: 0 }, q);
+  const item = await createItem({ code: "ZQ" }, q);
+  // qty2 = 0 -> not a sellable line; a draft with only this line can't be posted
+  const dr = await createDR(
+    { dr_no: "ZERO-QTY", customer_id: cust.id, lines: [{ item_id: item.id, qty: 0, qty2: 0, price: "1.00" }] },
+    d
+  );
+  await expect(postDR(dr.id, d)).rejects.toThrow(/line/i);
+  await db.close();
+});
+
+test("postDR rejects a negative amount (sane-amount gate)", async () => {
+  const db = await createTestDb();
+  const q = executor(db);
+  const d = asDb(db);
+  const cust = await createCustomer({ name: "B", terms_days: 0 }, q);
+  const item = await createItem({ code: "NEG" }, q);
+  const dr = await createDR(
+    {
+      dr_no: "NEG-AMT",
+      customer_id: cust.id,
+      lines: [{ item_id: item.id, qty: 1, qty2: 5, price: "-2.00" }]
+    },
+    d
+  );
+  await expect(postDR(dr.id, d)).rejects.toThrow(/amount|negative/i);
+  await db.close();
+});
+
+test("postDR applies A/R and inventory when the draft is complete", async () => {
+  const db = await createTestDb();
+  const q = executor(db);
+  const d = asDb(db);
+  const cust = await createCustomer({ name: "Complete Buyer", terms_days: 30 }, q);
+  const item = await createItem({ code: "OK" }, q);
+  const { recordMovement } = await import("./inventory");
+  await recordMovement({ itemId: item.id, in: 100 }, q);
+
+  const dr = await createDR(
+    {
+      dr_no: "COMPLETE",
+      dr_date: "2024-05-01",
+      customer_id: cust.id,
+      terms_days: 30,
+      lines: [{ item_id: item.id, qty: 1, qty2: 20, price: "10.00" }]
+    },
+    d
+  );
+  expect(validateDRForPost(dr)).toEqual([]);
+
+  const posted = await postDR(dr.id, d);
+  expect(posted.posted).toBe(true);
+  // inventory fell by qty2
+  expect(await currentStock(item.id, q)).toBe(80);
+  // A/R raised for the grand total
+  const ar = await q("select amount::text as amount from ar where dr_id = $1", [dr.id]);
+  expect(ar).toHaveLength(1);
+  expect((ar[0] as { amount: string }).amount).toBe("200.00");
   await db.close();
 });
 
