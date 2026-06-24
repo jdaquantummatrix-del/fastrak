@@ -13,7 +13,9 @@
     "db:migrate": "node scripts/migrate.mjs",
     "db:import": "node scripts/import-fastrak.mjs",
     "db:seed": "node scripts/seed-admin.mjs",
-    "db:setup": "npm run db:migrate && npm run db:import && npm run db:seed"
+    "db:setup": "npm run db:migrate && npm run db:import && npm run db:seed",
+    "demo:load": "tsx scripts/demo-load.ts",
+    "demo:wipe": "tsx scripts/demo-wipe.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.3",
@@ -27,6 +29,7 @@
     "@types/pg": "^8.11.10",
     "@types/react": "^19.0.7",
     "@types/react-dom": "^19.0.3",
+    "tsx": "^4.22.4",
     "typescript": "^5.7.3",
     "vitest": "^4.1.9"
   }
