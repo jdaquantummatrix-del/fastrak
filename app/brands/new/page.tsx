@@ -5,7 +5,7 @@ export default function NewBrandPage() {
   return (
     <main>
       <div className="crumb">
-        <a href="/">← Project Kenny</a> / <a href="/brands">brands</a> / new
+        <a href="/">← fastrak</a> / <a href="/brands">brands</a> / new
       </div>
       <div className="kicker">fastrak reference data</div>
       <h1>New brand</h1>

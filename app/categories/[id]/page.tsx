@@ -19,7 +19,7 @@ export default async function EditCategoryPage({
   return (
     <main>
       <div className="crumb">
-        <a href="/">← Project Kenny</a> / <a href="/categories">categories</a> / edit
+        <a href="/">← fastrak</a> / <a href="/categories">categories</a> / edit
       </div>
       <div className="kicker">fastrak reference data</div>
       <h1>Edit category</h1>

@@ -9,7 +9,7 @@ export default async function NewItemPage() {
   return (
     <main>
       <div className="crumb">
-        <a href="/">← Project Kenny</a> / <a href="/items">items</a> / new
+        <a href="/">← fastrak</a> / <a href="/items">items</a> / new
       </div>
       <div className="kicker">fastrak module</div>
       <h1>New item</h1>

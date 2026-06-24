@@ -31,7 +31,7 @@ export default async function NewDRPage() {
   return (
     <main>
       <div className="crumb">
-        <a href="/">← Project Kenny</a> /{" "}
+        <a href="/">← fastrak</a> /{" "}
         <a href="/dr">delivery receipts</a> / new
       </div>
       <div className="kicker">fastrak module</div>

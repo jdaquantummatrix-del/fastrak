@@ -1,10 +1,10 @@
-# CLAUDE.md — Project Kenny
+# CLAUDE.md — fastrak
 
 This file guides Claude Code when working in this repo.
 
 ## What this is
 
-**Project Kenny** is the home for migrating **Kennard's legacy FoxPro applications** to modern
+**fastrak** is the home for migrating **Kennard's legacy FoxPro applications** to modern
 web apps. Kennard is a long-time FoxPro developer with ~200 corporate clients. He runs a
 **core-modules-packaged-per-client** model: a handful of core modules (inventory, invoicing,
 BOM, etc.), customized per client. The goal is to rebuild these as a **modern web app** clients
@@ -50,7 +50,7 @@ they know how this repo works. Edit `docs/agents/*.md` directly to change any of
 
 ### Issue tracker
 
-GitHub Issues at `jdaquantummatrix-del/Project-Kenny` (via the `gh` CLI). See `docs/agents/issue-tracker.md`.
+GitHub Issues at `jdaquantummatrix-del/fastrak` (via the `gh` CLI). See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 

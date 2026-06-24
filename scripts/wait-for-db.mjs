@@ -3,7 +3,7 @@ import pg from "pg";
 
 const conn =
   process.env.DATABASE_URL ||
-  "postgres://postgres:postgres@localhost:5432/projectkenny";
+  "postgres://postgres:postgres@localhost:5432/fastrak";
 
 const deadline = Date.now() + 60_000;
 for (;;) {

@@ -18,7 +18,7 @@ export default async function NewMovementPage() {
   return (
     <main>
       <div className="crumb">
-        <a href="/">← Project Kenny</a> /{" "}
+        <a href="/">← fastrak</a> /{" "}
         <a href="/inventory">inventory</a> / new movement
       </div>
       <div className="kicker">fastrak module</div>

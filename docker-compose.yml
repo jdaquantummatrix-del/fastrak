@@ -9,16 +9,16 @@
 services:
   db:
     image: postgres:16
-    container_name: project-kenny-db
+    container_name: fastrak-db
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_DB: projectkenny
+      POSTGRES_DB: fastrak
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d projectkenny"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d fastrak"]
       interval: 5s
       timeout: 5s
       retries: 12
@@ -27,13 +27,13 @@ services:
 
   app:
     build: .
-    container_name: project-kenny-app
+    container_name: fastrak-app
     restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/projectkenny
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/fastrak
       SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET in .env (e.g. openssl rand -hex 32)}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme}
@@ -48,7 +48,7 @@ services:
   # traffic to the app container over the private network.
   caddy:
     image: caddy:2
-    container_name: project-kenny-caddy
+    container_name: fastrak-caddy
     restart: unless-stopped
     depends_on:
       - app

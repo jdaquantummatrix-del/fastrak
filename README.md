@@ -1,4 +1,4 @@
-# Project Kenny
+# fastrak
 
 Web rebuild of Kennard's **fastrak** (Visual FoxPro) distribution system — one vertical slice
 at a time. See `CONTEXT.md` for the domain and `docs/analysis/fastrak-overview.md` for the

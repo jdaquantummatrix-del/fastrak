@@ -1,4 +1,4 @@
-# CONTEXT.md — Project Kenny domain glossary
+# CONTEXT.md — fastrak domain glossary
 
 The shared vocabulary for the Kennard FoxPro-to-web migration. Add terms as they get resolved.
 Project terms (the migration itself) and the **fastrak** application's business domain.

@@ -28,7 +28,7 @@ export default async function EditCustomerPage({
   return (
     <main>
       <div className="crumb">
-        <a href="/">← Project Kenny</a> / <a href="/customers">customers</a> / edit
+        <a href="/">← fastrak</a> / <a href="/customers">customers</a> / edit
       </div>
       <div className="kicker">fastrak module</div>
       <h1>Edit customer</h1>

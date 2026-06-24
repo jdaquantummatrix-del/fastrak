@@ -14,7 +14,7 @@ export default async function CustomersPage() {
   return (
     <main>
       <div className="crumb">
-        <a href="/">← Project Kenny</a> / customers
+        <a href="/">← fastrak</a> / customers
       </div>
       <div className="kicker">fastrak module</div>
       <h1>Customers</h1>

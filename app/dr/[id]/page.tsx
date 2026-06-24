@@ -73,7 +73,7 @@ export default async function DRDetailPage({
   return (
     <main>
       <div className="crumb">
-        <a href="/">← Project Kenny</a> /{" "}
+        <a href="/">← fastrak</a> /{" "}
         <a href="/dr">delivery receipts</a> / {dr.dr_no ?? dr.id}
       </div>
       <div className="kicker">fastrak module</div>

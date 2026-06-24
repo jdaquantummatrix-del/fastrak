@@ -1,6 +1,6 @@
-# How I Work — the Project Kenny workflow
+# How I Work — the fastrak workflow
 
-My personal operating manual for building Project Kenny with Matt Pocock's skills. The point:
+My personal operating manual for building fastrak with Matt Pocock's skills. The point:
 **stop deciding the process each time.** Every piece of work follows the same loop, so I never
 again build a slice off-process the way I built Customer (slice 1).
 

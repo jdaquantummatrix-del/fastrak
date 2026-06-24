@@ -55,7 +55,7 @@ export default async function EditDRPage({
   return (
     <main>
       <div className="crumb">
-        <a href="/">← Project Kenny</a> /{" "}
+        <a href="/">← fastrak</a> /{" "}
         <a href="/dr">delivery receipts</a> /{" "}
         <a href={`/dr/${dr.id}`}>{dr.dr_no ?? dr.id}</a> / edit
       </div>

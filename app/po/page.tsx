@@ -21,7 +21,7 @@ export default async function POPage() {
   return (
     <main>
       <div className="crumb">
-        <a href="/">← Project Kenny</a> / purchase orders
+        <a href="/">← fastrak</a> / purchase orders
       </div>
       <div className="kicker">fastrak module</div>
       <h1>Purchase Orders</h1>

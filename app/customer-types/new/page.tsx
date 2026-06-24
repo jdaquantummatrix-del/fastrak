@@ -5,7 +5,7 @@ export default function NewCustomerTypePage() {
   return (
     <main>
       <div className="crumb">
-        <a href="/">← Project Kenny</a> /{" "}
+        <a href="/">← fastrak</a> /{" "}
         <a href="/customer-types">customer types</a> / new
       </div>
       <div className="kicker">fastrak reference data</div>

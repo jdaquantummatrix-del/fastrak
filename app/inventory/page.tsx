@@ -40,7 +40,7 @@ export default async function InventoryPage() {
   return (
     <main>
       <div className="crumb">
-        <a href="/">← Project Kenny</a> / inventory
+        <a href="/">← fastrak</a> / inventory
       </div>
       <div className="kicker">fastrak module</div>
       <h1>Inventory</h1>

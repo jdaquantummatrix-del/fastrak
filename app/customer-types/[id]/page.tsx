@@ -20,7 +20,7 @@ export default async function EditCustomerTypePage({
   return (
     <main>
       <div className="crumb">
-        <a href="/">← Project Kenny</a> /{" "}
+        <a href="/">← fastrak</a> /{" "}
         <a href="/customer-types">customer types</a> / edit
       </div>
       <div className="kicker">fastrak reference data</div>

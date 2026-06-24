@@ -36,7 +36,7 @@ export default async function CollectionsPage() {
   return (
     <main>
       <div className="crumb">
-        <a href="/">← Project Kenny</a> / collections
+        <a href="/">← fastrak</a> / collections
       </div>
       <div className="kicker">fastrak module</div>
       <h1>Collections</h1>

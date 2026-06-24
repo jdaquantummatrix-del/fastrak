@@ -10,7 +10,7 @@ export default async function NewCustomerPage() {
   return (
     <main>
       <div className="crumb">
-        <a href="/">← Project Kenny</a> / <a href="/customers">customers</a> / new
+        <a href="/">← fastrak</a> / <a href="/customers">customers</a> / new
       </div>
       <div className="kicker">fastrak module</div>
       <h1>New customer</h1>

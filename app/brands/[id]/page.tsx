@@ -19,7 +19,7 @@ export default async function EditBrandPage({
   return (
     <main>
       <div className="crumb">
-        <a href="/">← Project Kenny</a> / <a href="/brands">brands</a> / edit
+        <a href="/">← fastrak</a> / <a href="/brands">brands</a> / edit
       </div>
       <div className="kicker">fastrak reference data</div>
       <h1>Edit brand</h1>

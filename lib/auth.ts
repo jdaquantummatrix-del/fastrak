@@ -13,7 +13,7 @@
 // exists in both runtimes. Everything is therefore async.
 
 // Cookie name. Namespaced so it can't collide with anything else on the host.
-export const SESSION_COOKIE = "kenny_session";
+export const SESSION_COOKIE = "fastrak_session";
 
 // How long a login lasts (7 days). Used for the cookie Max-Age and as the token's
 // own expiry, so an old cookie can't be replayed forever even if it leaks.
@@ -112,5 +112,5 @@ export async function verifySession(
 // (docker-compose requires it). A loud, obviously-insecure dev fallback keeps
 // `npm run dev` working without configuration.
 export function getSessionSecret(): string {
-  return process.env.SESSION_SECRET || "kenny-dev-insecure-session-secret-change-me";
+  return process.env.SESSION_SECRET || "fastrak-dev-insecure-session-secret-change-me";
 }

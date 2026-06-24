@@ -45,5 +45,5 @@ test("an expired token does NOT verify", async () => {
 });
 
 test("the cookie name is a stable, namespaced constant", () => {
-  expect(SESSION_COOKIE).toBe("kenny_session");
+  expect(SESSION_COOKIE).toBe("fastrak_session");
 });

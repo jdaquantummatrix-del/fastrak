@@ -14,7 +14,7 @@ export default async function SuppliersPage() {
   return (
     <main>
       <div className="crumb">
-        <a href="/">← Project Kenny</a> / suppliers
+        <a href="/">← fastrak</a> / suppliers
       </div>
       <div className="kicker">fastrak reference data</div>
       <h1>Suppliers</h1>

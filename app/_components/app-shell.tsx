@@ -153,7 +153,7 @@ export default function AppShell({
           <div className="brand-mark">f</div>
           <div>
             <div className="brand-name">fastrak</div>
-            <div className="brand-sub">Project Kenny</div>
+            <div className="brand-sub">Distribution</div>
           </div>
         </div>
 

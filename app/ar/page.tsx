@@ -51,7 +51,7 @@ export default async function ARPage() {
   return (
     <main>
       <div className="crumb">
-        <a href="/">← Project Kenny</a> / accounts receivable
+        <a href="/">← fastrak</a> / accounts receivable
       </div>
       <div className="kicker">fastrak module</div>
       <h1>Accounts Receivable</h1>

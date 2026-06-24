@@ -28,7 +28,7 @@ export default async function NewPOPage() {
   return (
     <main>
       <div className="crumb">
-        <a href="/">← Project Kenny</a> / <a href="/po">purchase orders</a> / new
+        <a href="/">← fastrak</a> / <a href="/po">purchase orders</a> / new
       </div>
       <div className="kicker">fastrak module</div>
       <h1>New purchase order</h1>

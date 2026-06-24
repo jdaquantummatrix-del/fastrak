@@ -33,8 +33,8 @@ const display = DM_Serif_Display({
 });
 
 export const metadata: Metadata = {
-  title: "fastrak — Project Kenny",
-  description: "Web rebuild of Kennard's fastrak distribution system"
+  title: "fastrak",
+  description: "fastrak — wholesale distribution system"
 };
 
 export default async function RootLayout({

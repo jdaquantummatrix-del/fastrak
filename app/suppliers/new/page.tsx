@@ -5,7 +5,7 @@ export default function NewSupplierPage() {
   return (
     <main>
       <div className="crumb">
-        <a href="/">← Project Kenny</a> / <a href="/suppliers">suppliers</a> / new
+        <a href="/">← fastrak</a> / <a href="/suppliers">suppliers</a> / new
       </div>
       <div className="kicker">fastrak reference data</div>
       <h1>New supplier</h1>

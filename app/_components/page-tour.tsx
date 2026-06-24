@@ -272,8 +272,8 @@ function Ico({ name }: { name: string }) {
   );
 }
 
-const ENABLED_KEY = "kenny_tour_enabled";
-const SEEN_KEY = "kenny_tour_seen";
+const ENABLED_KEY = "fastrak_tour_enabled";
+const SEEN_KEY = "fastrak_tour_seen";
 function sectionKey(path: string): string {
   if (path === "/") return "/";
   return "/" + (path.split("/")[1] || "");

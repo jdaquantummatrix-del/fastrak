@@ -1,4 +1,4 @@
-# Project Kenny — production image for the fastrak web app.
+# fastrak — production image for the fastrak web app.
 # Multi-stage so the final image carries only what it needs to RUN (no compiler,
 # no dev dependencies): build once, ship a small runtime.
 

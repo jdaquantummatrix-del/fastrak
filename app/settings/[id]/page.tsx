@@ -19,7 +19,7 @@ export default async function EditSettingPage({
   return (
     <main>
       <div className="crumb">
-        <a href="/">← Project Kenny</a> / <a href="/settings">settings</a> / edit
+        <a href="/">← fastrak</a> / <a href="/settings">settings</a> / edit
       </div>
       <div className="kicker">fastrak module</div>
       <h1>Edit setting</h1>

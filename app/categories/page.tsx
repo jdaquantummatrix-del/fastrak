@@ -14,7 +14,7 @@ export default async function CategoriesPage() {
   return (
     <main>
       <div className="crumb">
-        <a href="/">← Project Kenny</a> / categories
+        <a href="/">← fastrak</a> / categories
       </div>
       <div className="kicker">fastrak reference data</div>
       <h1>Categories</h1>

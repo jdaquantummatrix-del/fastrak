@@ -47,7 +47,7 @@ export default async function POPage({
   return (
     <main>
       <div className="crumb">
-        <a href="/">← Project Kenny</a> /{" "}
+        <a href="/">← fastrak</a> /{" "}
         <a href="/po">purchase orders</a> / {po.po_no ?? po.id}
       </div>
       <div className="kicker">fastrak module</div>

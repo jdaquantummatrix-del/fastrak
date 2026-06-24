@@ -21,7 +21,7 @@ export default async function EditItemPage({
   return (
     <main>
       <div className="crumb">
-        <a href="/">← Project Kenny</a> / <a href="/items">items</a> / edit
+        <a href="/">← fastrak</a> / <a href="/items">items</a> / edit
       </div>
       <div className="kicker">fastrak module</div>
       <h1>Edit item</h1>

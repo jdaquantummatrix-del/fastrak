@@ -62,12 +62,12 @@ Console** (no SSH key needed). Then install git and clone the repo.
 The repo is **private**, so you need a read-only **GitHub token** to clone it:
 on GitHub → *Settings → Developer settings → Personal access tokens →
 Fine-grained tokens → Generate new token* → give it **Read-only** access to the
-`Project-Kenny` repo. Copy the token (starts with `github_pat_…`).
+`fastrak` repo. Copy the token (starts with `github_pat_…`).
 
 ```bash
 apt-get update && apt-get install -y git
-git clone https://YOUR_GITHUB_USERNAME:YOUR_TOKEN@github.com/jdaquantummatrix-del/Project-Kenny.git
-cd Project-Kenny
+git clone https://YOUR_GITHUB_USERNAME:YOUR_TOKEN@github.com/jdaquantummatrix-del/fastrak.git
+cd fastrak
 ```
 
 (The token is only used for this one clone; you can delete it from GitHub after.)
@@ -133,13 +133,13 @@ this into `docker-compose.yml` — it's a small addition once you have the domai
 Your data lives in the `pgdata` Docker volume. Take a dump regularly:
 
 ```bash
-docker compose exec db pg_dump -U postgres projectkenny > backup-$(date +%F).sql
+docker compose exec db pg_dump -U postgres fastrak > backup-$(date +%F).sql
 ```
 
 Restore into a fresh stack:
 
 ```bash
-cat backup-2026-06-23.sql | docker compose exec -T db psql -U postgres projectkenny
+cat backup-2026-06-23.sql | docker compose exec -T db psql -U postgres fastrak
 ```
 
 Keep copies off the droplet (e.g. DigitalOcean Spaces).

@@ -72,7 +72,7 @@ export default async function ReturnDetailPage({
   return (
     <main>
       <div className="crumb">
-        <a href="/">← Project Kenny</a> / <a href="/returns">returns</a> / {ret.id}
+        <a href="/">← fastrak</a> / <a href="/returns">returns</a> / {ret.id}
       </div>
       <div className="kicker">fastrak module</div>
       <h1>Return</h1>

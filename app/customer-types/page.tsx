@@ -14,7 +14,7 @@ export default async function CustomerTypesPage() {
   return (
     <main>
       <div className="crumb">
-        <a href="/">← Project Kenny</a> / customer types
+        <a href="/">← fastrak</a> / customer types
       </div>
       <div className="kicker">fastrak reference data</div>
       <h1>Customer Types</h1>

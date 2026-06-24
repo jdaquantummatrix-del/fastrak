@@ -28,7 +28,7 @@ export default async function DRPage() {
   return (
     <main>
       <div className="crumb">
-        <a href="/">← Project Kenny</a> / delivery receipts
+        <a href="/">← fastrak</a> / delivery receipts
       </div>
       <div className="kicker">fastrak module</div>
       <h1>Delivery Receipts</h1>

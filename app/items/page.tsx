@@ -35,7 +35,7 @@ export default async function ItemsPage() {
   return (
     <main>
       <div className="crumb">
-        <a href="/">← Project Kenny</a> / items
+        <a href="/">← fastrak</a> / items
       </div>
       <div className="kicker">fastrak module</div>
       <h1>Items</h1>

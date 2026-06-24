@@ -14,7 +14,7 @@ export default async function BrandsPage() {
   return (
     <main>
       <div className="crumb">
-        <a href="/">← Project Kenny</a> / brands
+        <a href="/">← fastrak</a> / brands
       </div>
       <div className="kicker">fastrak reference data</div>
       <h1>Brands</h1>

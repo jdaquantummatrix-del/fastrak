@@ -19,7 +19,7 @@ export default async function EditUnitPage({
   return (
     <main>
       <div className="crumb">
-        <a href="/">← Project Kenny</a> / <a href="/units">units</a> / edit
+        <a href="/">← fastrak</a> / <a href="/units">units</a> / edit
       </div>
       <div className="kicker">fastrak reference data</div>
       <h1>Edit unit</h1>

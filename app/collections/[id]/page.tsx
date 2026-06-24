@@ -32,7 +32,7 @@ export default async function CollectionDetailPage({
   return (
     <main>
       <div className="crumb">
-        <a href="/">← Project Kenny</a> /{" "}
+        <a href="/">← fastrak</a> /{" "}
         <a href="/collections">collections</a> / {col.id}
       </div>
       <div className="kicker">fastrak module</div>

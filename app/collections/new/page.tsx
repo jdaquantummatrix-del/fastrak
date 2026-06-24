@@ -32,7 +32,7 @@ export default async function NewCollectionPage() {
   return (
     <main>
       <div className="crumb">
-        <a href="/">← Project Kenny</a> / <a href="/collections">collections</a> / new
+        <a href="/">← fastrak</a> / <a href="/collections">collections</a> / new
       </div>
       <div className="kicker">fastrak module</div>
       <h1>New collection</h1>

@@ -12,7 +12,7 @@ const THEMES = [
   { key: "paper", label: "Paper" },
   { key: "slate", label: "Slate" }
 ];
-const STORAGE_KEY = "kenny_theme";
+const STORAGE_KEY = "fastrak_theme";
 
 function applyTheme(theme: string) {
   const el = document.documentElement;

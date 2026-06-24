@@ -18,7 +18,7 @@ export default async function SettingsPage() {
   return (
     <main>
       <div className="crumb">
-        <a href="/">← Project Kenny</a> / settings
+        <a href="/">← fastrak</a> / settings
       </div>
       <div className="kicker">fastrak module</div>
       <h1>Company &amp; settings</h1>

@@ -40,7 +40,7 @@ export default async function NewReturnPage() {
   return (
     <main>
       <div className="crumb">
-        <a href="/">← Project Kenny</a> / <a href="/returns">returns</a> / new
+        <a href="/">← fastrak</a> / <a href="/returns">returns</a> / new
       </div>
       <div className="kicker">fastrak module</div>
       <h1>New return</h1>

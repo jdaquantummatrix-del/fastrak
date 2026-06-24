@@ -14,7 +14,7 @@ export default async function UnitsPage() {
   return (
     <main>
       <div className="crumb">
-        <a href="/">← Project Kenny</a> / units
+        <a href="/">← fastrak</a> / units
       </div>
       <div className="kicker">fastrak reference data</div>
       <h1>Units</h1>

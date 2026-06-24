@@ -5,7 +5,7 @@ export default function NewCategoryPage() {
   return (
     <main>
       <div className="crumb">
-        <a href="/">← Project Kenny</a> / <a href="/categories">categories</a> / new
+        <a href="/">← fastrak</a> / <a href="/categories">categories</a> / new
       </div>
       <div className="kicker">fastrak reference data</div>
       <h1>New category</h1>

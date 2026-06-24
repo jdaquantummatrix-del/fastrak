@@ -19,7 +19,7 @@ export default async function EditSupplierPage({
   return (
     <main>
       <div className="crumb">
-        <a href="/">← Project Kenny</a> / <a href="/suppliers">suppliers</a> / edit
+        <a href="/">← fastrak</a> / <a href="/suppliers">suppliers</a> / edit
       </div>
       <div className="kicker">fastrak reference data</div>
       <h1>Edit supplier</h1>

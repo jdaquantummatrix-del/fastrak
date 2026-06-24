@@ -47,7 +47,7 @@ Ship a **shared-password gate** (this slice):
 
 - A single `APP_PASSWORD` (env var) is the only credential. No per-user accounts yet.
 - `/login` takes the password; on success we set a **signed, httpOnly** session cookie
-  (`kenny_session`), signed with HMAC-SHA256 over the Web Crypto API so the same helper works in
+  (`fastrak_session`), signed with HMAC-SHA256 over the Web Crypto API so the same helper works in
   both the Edge `middleware.ts` and Node Server Actions. Token carries only issued-at/expiry
   (7-day TTL) — there is no identity to carry.
 - `middleware.ts` redirects every request without a valid cookie to `/login` (allowing `/login`
