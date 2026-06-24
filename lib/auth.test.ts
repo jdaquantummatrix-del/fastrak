@@ -21,8 +21,14 @@ test("a session signed with a different secret does NOT verify", async () => {
 
 test("a tampered token does NOT verify", async () => {
   const token = await signSession(SECRET, "USER123");
-  // Flip the last character of the signature.
-  const tampered = token.slice(0, -1) + (token.endsWith("A") ? "B" : "A");
+  // Tamper the FIRST character of the signature segment. Flipping the LAST
+  // base64url char is unreliable: its unused low-order padding bits can decode to
+  // the SAME signature bytes, so verification would still pass (this made the
+  // test flaky). The first char carries the high-order bits of byte 0, so
+  // changing it to any other base64url char always changes the decoded signature.
+  const [body, sig] = token.split(".");
+  const tamperedFirst = sig[0] === "A" ? "B" : "A";
+  const tampered = `${body}.${tamperedFirst}${sig.slice(1)}`;
   expect(await verifySession(tampered, SECRET)).toBeNull();
 });
 
