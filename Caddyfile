@@ -1,0 +1,12 @@
+# Caddy reverse proxy for the fastrak app. Caddy automatically fetches and
+# renews a free HTTPS certificate for this domain (Let's Encrypt), then proxies
+# requests to the app container on the private Docker network.
+#
+# Requirements for the certificate to issue:
+#   - the domain's DNS A record points at this droplet (DNS-only / grey cloud)
+#   - ports 80 and 443 are reachable from the internet
+#
+# To change the domain, edit the hostname below and redeploy.
+fastrack.draft-in-progress.com {
+	reverse_proxy app:3000
+}

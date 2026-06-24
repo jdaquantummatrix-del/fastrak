@@ -39,8 +39,28 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       NODE_ENV: production
+    # No host port published — the app is only reached through Caddy (HTTPS).
+    expose:
+      - "3000"
+
+  # Reverse proxy that terminates HTTPS. Caddy automatically obtains and renews a
+  # free Let's Encrypt certificate for the domain in ./Caddyfile, then forwards
+  # traffic to the app container over the private network.
+  caddy:
+    image: caddy:2
+    container_name: project-kenny-caddy
+    restart: unless-stopped
+    depends_on:
+      - app
     ports:
-      - "3000:3000"
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
 
 volumes:
   pgdata:
+  caddy_data:
+  caddy_config:
