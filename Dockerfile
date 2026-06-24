@@ -16,10 +16,11 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
 
-# ── Production dependencies only (no typescript/vitest/types) ────────────────
+# ── Runtime dependencies. Install ALL deps (not --omit=dev) because the demo
+# data loader (scripts/demo-load.ts) runs via tsx inside the container. ─────────
 FROM base AS prod-deps
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
+RUN npm ci
 
 # ── Runtime image ───────────────────────────────────────────────────────────
 FROM base AS runner
@@ -29,10 +30,12 @@ ENV PORT=3000
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=build /app/.next ./.next
 COPY --from=build /app/public ./public
-COPY package.json next.config.mjs ./
-# Schema + scripts are needed at startup to migrate and seed the database.
+COPY package.json next.config.mjs tsconfig.json ./
+# Schema + scripts run at startup (migrate/seed); lib is imported by the tsx
+# demo-data loader (scripts/demo-load.ts -> lib/demo, lib/db).
 COPY db ./db
 COPY scripts ./scripts
+COPY lib ./lib
 COPY docker-entrypoint.sh ./docker-entrypoint.sh
 
 RUN chmod +x ./docker-entrypoint.sh && chown -R node:node /app
