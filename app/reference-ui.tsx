@@ -1,7 +1,13 @@
 // Shared, dependency-free form UI for the S1 reference-data screens (units,
-// categories, brands, suppliers). Styles are inline so we don't have to touch
-// the shared app/globals.css. Plain server components (no client JS needed).
+// categories, brands, suppliers) and the document forms. Styles are inline so we
+// don't have to touch the shared app/globals.css. Plain server components.
+//
+// Each input renders a one-line hint (and, where useful, an example) sourced
+// from the central registry in lib/field-hints.ts — keyed by the field `name`,
+// with an optional per-form `formContext` (issue #23 / S6). Pass `hint`/`example`
+// explicitly to override the registry for a one-off field.
 import type { CSSProperties, ReactNode } from "react";
+import { getFieldHint } from "@/lib/field-hints";
 
 const labelStyle: CSSProperties = {
   display: "block",
@@ -48,6 +54,50 @@ const actionsStyle: CSSProperties = {
   marginTop: 8
 };
 
+const hintStyle: CSSProperties = {
+  display: "block",
+  fontSize: 12,
+  lineHeight: 1.4,
+  color: "var(--muted)",
+  marginTop: 5
+};
+
+const exampleStyle: CSSProperties = {
+  fontFamily: "var(--mono)",
+  color: "var(--ink)"
+};
+
+// Resolve and render the one-line hint + example for a field. Returns null when
+// neither an explicit hint nor a registry entry exists, so plain fields with no
+// guidance simply render nothing extra.
+function FieldHintLine({
+  name,
+  formContext,
+  hint,
+  example
+}: {
+  name: string;
+  formContext?: string;
+  hint?: string;
+  example?: string;
+}) {
+  const registered = getFieldHint(name, formContext);
+  const text = hint ?? registered?.hint;
+  const ex = example ?? registered?.example;
+  if (!text && !ex) return null;
+  return (
+    <span style={hintStyle}>
+      {text}
+      {ex ? (
+        <>
+          {text ? " " : ""}
+          <span style={exampleStyle}>e.g. {ex}</span>
+        </>
+      ) : null}
+    </span>
+  );
+}
+
 export function Field({
   label,
   name,
@@ -55,7 +105,10 @@ export function Field({
   required,
   maxLength,
   autoFocus,
-  type = "text"
+  type = "text",
+  formContext,
+  hint,
+  example
 }: {
   label: string;
   name: string;
@@ -64,6 +117,9 @@ export function Field({
   maxLength?: number;
   autoFocus?: boolean;
   type?: "text" | "number";
+  formContext?: string;
+  hint?: string;
+  example?: string;
 }) {
   return (
     <label style={labelStyle}>
@@ -77,6 +133,7 @@ export function Field({
         autoFocus={autoFocus}
         defaultValue={defaultValue ?? ""}
       />
+      <FieldHintLine name={name} formContext={formContext} hint={hint} example={example} />
     </label>
   );
 }
@@ -88,7 +145,10 @@ export function SelectField({
   defaultValue,
   required,
   autoFocus,
-  placeholder
+  placeholder,
+  formContext,
+  hint,
+  example
 }: {
   label: string;
   name: string;
@@ -97,6 +157,9 @@ export function SelectField({
   required?: boolean;
   autoFocus?: boolean;
   placeholder?: string;
+  formContext?: string;
+  hint?: string;
+  example?: string;
 }) {
   return (
     <label style={labelStyle}>
@@ -115,6 +178,7 @@ export function SelectField({
           </option>
         ))}
       </select>
+      <FieldHintLine name={name} formContext={formContext} hint={hint} example={example} />
     </label>
   );
 }
@@ -122,19 +186,24 @@ export function SelectField({
 export function CheckboxField({
   label,
   name,
-  defaultChecked
+  defaultChecked,
+  formContext,
+  hint
 }: {
   label: string;
   name: string;
   defaultChecked?: boolean;
+  formContext?: string;
+  hint?: string;
 }) {
   return (
-    <label
-      style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 16 }}
-    >
-      <input type="checkbox" name={name} value="1" defaultChecked={defaultChecked} />
-      <span style={{ fontSize: 14 }}>{label}</span>
-    </label>
+    <div style={{ marginBottom: 16 }}>
+      <label style={{ display: "flex", gap: 10, alignItems: "center" }}>
+        <input type="checkbox" name={name} value="1" defaultChecked={defaultChecked} />
+        <span style={{ fontSize: 14 }}>{label}</span>
+      </label>
+      <FieldHintLine name={name} formContext={formContext} hint={hint} />
+    </div>
   );
 }
 

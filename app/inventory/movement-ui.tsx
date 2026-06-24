@@ -3,11 +3,49 @@
 // does not touch shared files. Styles mirror app/reference-ui.tsx so the forms
 // look consistent. Plain server component — no client JS needed.
 import type { CSSProperties } from "react";
+import { getFieldHint } from "@/lib/field-hints";
 
 const labelStyle: CSSProperties = {
   display: "block",
   marginBottom: 16
 };
+
+const hintStyle: CSSProperties = {
+  display: "block",
+  fontSize: 12,
+  lineHeight: 1.4,
+  color: "var(--muted)",
+  marginTop: 5
+};
+
+const exampleStyle: CSSProperties = {
+  fontFamily: "var(--mono)",
+  color: "var(--ink)"
+};
+
+// One-line hint + example for a field, sourced from lib/field-hints.ts.
+// Renders nothing when the field has no registered hint.
+function FieldHintLine({
+  name,
+  formContext
+}: {
+  name: string;
+  formContext?: string;
+}) {
+  const h = getFieldHint(name, formContext);
+  if (!h) return null;
+  return (
+    <span style={hintStyle}>
+      {h.hint}
+      {h.example ? (
+        <>
+          {" "}
+          <span style={exampleStyle}>e.g. {h.example}</span>
+        </>
+      ) : null}
+    </span>
+  );
+}
 
 const captionStyle: CSSProperties = {
   display: "block",
@@ -40,7 +78,8 @@ export function SelectField({
   options,
   defaultValue,
   placeholder,
-  required
+  required,
+  formContext
 }: {
   label: string;
   name: string;
@@ -48,6 +87,7 @@ export function SelectField({
   defaultValue?: string | null;
   placeholder?: string;
   required?: boolean;
+  formContext?: string;
 }) {
   return (
     <label style={labelStyle}>
@@ -65,6 +105,7 @@ export function SelectField({
           </option>
         ))}
       </select>
+      <FieldHintLine name={name} formContext={formContext} />
     </label>
   );
 }
@@ -73,11 +114,13 @@ export function SelectField({
 export function DateField({
   label,
   name,
-  defaultValue
+  defaultValue,
+  formContext
 }: {
   label: string;
   name: string;
   defaultValue?: string | null;
+  formContext?: string;
 }) {
   return (
     <label style={labelStyle}>
@@ -88,6 +131,7 @@ export function DateField({
         type="date"
         defaultValue={defaultValue ?? ""}
       />
+      <FieldHintLine name={name} formContext={formContext} />
     </label>
   );
 }
