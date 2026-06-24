@@ -81,6 +81,44 @@ export function Field({
   );
 }
 
+export function SelectField({
+  label,
+  name,
+  options,
+  defaultValue,
+  required,
+  autoFocus,
+  placeholder
+}: {
+  label: string;
+  name: string;
+  options: { value: string; label: string }[];
+  defaultValue?: string | null;
+  required?: boolean;
+  autoFocus?: boolean;
+  placeholder?: string;
+}) {
+  return (
+    <label style={labelStyle}>
+      <span style={captionStyle}>{label}</span>
+      <select
+        style={inputStyle}
+        name={name}
+        required={required}
+        autoFocus={autoFocus}
+        defaultValue={defaultValue ?? ""}
+      >
+        <option value="">{placeholder ?? "—"}</option>
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 export function CheckboxField({
   label,
   name,

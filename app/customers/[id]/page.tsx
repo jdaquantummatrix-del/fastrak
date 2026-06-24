@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import { getCustomer } from "@/lib/customers";
+import { listCustomerTypes } from "@/lib/customer-types";
 import { updateCustomerAction } from "../actions";
-import { Field, FormActions, FormCard } from "../../reference-ui";
+import { Field, SelectField, FormActions, FormCard } from "../../reference-ui";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,14 @@ export default async function EditCustomerPage({
   const { id } = await params;
   const customer = await getCustomer(id);
   if (!customer) notFound();
+
+  const types = await listCustomerTypes();
+  const typeOptions = types.map((t) => ({ value: t.name ?? "", label: t.name ?? "—" }));
+  // Preserve a legacy free-text type that isn't in the managed list, so saving
+  // an existing customer never silently drops its current Type.
+  if (customer.type && !typeOptions.some((o) => o.value === customer.type)) {
+    typeOptions.push({ value: customer.type, label: `${customer.type} (legacy)` });
+  }
 
   const action = updateCustomerAction.bind(null, customer.id);
 
@@ -37,7 +46,13 @@ export default async function EditCustomerPage({
             defaultValue={customer.name}
             autoFocus
           />
-          <Field label="Type" name="type" maxLength={9} defaultValue={customer.type} />
+          <SelectField
+            label="Type"
+            name="type"
+            options={typeOptions}
+            defaultValue={customer.type}
+            placeholder="— select a type —"
+          />
           <Field
             label="Terms (days)"
             name="terms_days"

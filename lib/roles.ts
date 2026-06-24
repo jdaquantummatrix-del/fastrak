@@ -21,6 +21,7 @@ export const MODULES: ModuleDef[] = [
   { key: "inventory", label: "Stock", group: "Inventory" },
   { key: "po", label: "Purchase Orders", group: "Inventory" },
   { key: "customers", label: "Customers", group: "Contacts" },
+  { key: "customer-types", label: "Customer Types", group: "Setup" },
   { key: "suppliers", label: "Suppliers", group: "Contacts" },
   { key: "reports", label: "Reports", group: "Reports" },
   { key: "units", label: "Units", group: "Setup" },

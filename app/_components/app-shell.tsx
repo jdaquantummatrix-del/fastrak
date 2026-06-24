@@ -90,6 +90,7 @@ const GROUPS: { title?: string; items: Item[] }[] = [
     title: "Setup",
     items: [
       { href: "/units", label: "Units", icon: "units" },
+      { href: "/customer-types", label: "Customer Types", icon: "customers" },
       { href: "/categories", label: "Categories", icon: "categories" },
       { href: "/brands", label: "Brands", icon: "brands" },
       { href: "/settings", label: "Settings", icon: "settings" },

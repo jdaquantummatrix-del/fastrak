@@ -1,7 +1,12 @@
 import { createCustomerAction } from "../actions";
-import { Field, FormActions, FormCard } from "../../reference-ui";
+import { Field, SelectField, FormActions, FormCard } from "../../reference-ui";
+import { listCustomerTypes } from "@/lib/customer-types";
 
-export default function NewCustomerPage() {
+export const dynamic = "force-dynamic";
+
+export default async function NewCustomerPage() {
+  const types = await listCustomerTypes();
+  const typeOptions = types.map((t) => ({ value: t.name ?? "", label: t.name ?? "—" }));
   return (
     <main>
       <div className="crumb">
@@ -13,7 +18,12 @@ export default function NewCustomerPage() {
       <FormCard>
         <form action={createCustomerAction}>
           <Field label="Name" name="name" required maxLength={150} autoFocus />
-          <Field label="Type" name="type" maxLength={9} />
+          <SelectField
+            label="Type"
+            name="type"
+            options={typeOptions}
+            placeholder="— select a type —"
+          />
           <Field label="Terms (days)" name="terms_days" type="number" />
           <Field label="Address" name="address" maxLength={150} />
           <Field label="Contact person" name="contact_person" maxLength={100} />
